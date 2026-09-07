@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --star-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%230F5132' stroke-width='0.6' stroke-opacity='0.16'%3E%3Cpath d='M28 2 L36 14 L50 14 L42 26 L50 38 L36 38 L28 50 L20 38 L6 38 L14 26 L6 14 L20 14 Z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.geo-panel {
+  background-color: #F1EFE6;
+  background-image: var(--star-pattern);
+  background-size: 56px 56px;
+}
+
+.rtl {
+  direction: rtl;
+}
+
+.card {
+  @apply rounded-card border border-line bg-white;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-card bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-card border border-line bg-white px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-emerald-50;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center rounded-card border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50;
+}
+
+.input {
+  @apply w-full rounded-card border border-line bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600;
+}
+
+.label {
+  @apply mb-1.5 block text-sm font-medium text-ink/80;
+}
+
+:focus-visible {
+  outline: 2px solid #0F5132;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
