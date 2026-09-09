@@ -79,6 +79,8 @@ export default function AdminBooksPage() {
       if (pdfFile) pdf_url = await uploadFile('book-pdfs', pdfFile);
       if (coverFile) cover_url = await uploadFile('book-covers', coverFile);
 
+      console.log('SELECTED LANGUAGE:', form.language);
+      
       const payload: Partial<Book> = {
         title: form.title.trim(),
         author: form.author.trim() || null,
