@@ -1,4 +1,4 @@
-export type Language = 'pashto' | 'urdu' | 'english';
+export type Language = 'pashto' | 'urdu' | 'english' | 'arabic';
 
 export type Category = {
   id: string;
@@ -55,4 +55,5 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
   pashto: 'پښتو',
   urdu: 'اردو',
   english: 'English',
+  arabic: 'العربية',
 };
