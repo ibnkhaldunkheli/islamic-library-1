@@ -97,7 +97,12 @@ export default function AdminBooksPage() {
         ? await supabase.from('books').update(payload).eq('id', editingId)
         : await supabase.from('books').insert(payload);
 
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('BOOK SAVE ERROR:', result.error);
+            throw new Error(
+                `${result.error.message} | code: ${result.error.code} | details: ${result.error.details ?? ''}`
+        );
+      }
 
       resetForm();
       await load();
