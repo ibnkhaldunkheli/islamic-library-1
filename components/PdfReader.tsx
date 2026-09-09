@@ -116,6 +116,10 @@ export default function PdfReader({ url, title }: { url: string; title: string }
         const fitScale = (container.clientWidth / unscaledWidth) * zoom;
         const viewport = page.getViewport({ scale: fitScale });
 
+        if (!canvas) {
+           return;
+        }
+        
         const context = canvas.getContext('2d');
         if (!context) return;
 
