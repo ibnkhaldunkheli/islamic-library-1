@@ -23,6 +23,7 @@ export default function PdfReader({ url, title }: { url: string; title: string }
   const pdfDocRef = useRef<any>(null);
   const renderTaskRef = useRef<any>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchRef = useRef<{ startDistance: number; startZoom: number } | null>(null);
 
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -107,17 +108,9 @@ export default function PdfReader({ url, title }: { url: string; title: string }
         if (cancelled) return;
 
         const unscaledWidth = page.getViewport({ scale: 1 }).width;
-        if (!container) {
-            return;
-        }
-
         const fitScale = (container.clientWidth / unscaledWidth) * zoom;
         const viewport = page.getViewport({ scale: fitScale });
 
-        if (!canvas) {
-           return;
-        }
-        
         const context = canvas.getContext('2d');
         if (!context) return;
 
@@ -182,20 +175,61 @@ export default function PdfReader({ url, title }: { url: string; title: string }
     setZoom((z) => Math.max(MIN_ZOOM, Math.round((z - ZOOM_STEP) * 100) / 100));
   }
 
+  function getTouchDistance(e: ReactTouchEvent) {
+    if (e.touches.length < 2) return 0;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
   function onTouchStart(e: ReactTouchEvent) {
+    if (e.touches.length >= 2) {
+      touchStartRef.current = null;
+      const distance = getTouchDistance(e);
+      if (distance > 0) {
+        pinchRef.current = { startDistance: distance, startZoom: zoom };
+      }
+      return;
+    }
+
     const t = e.touches[0];
     touchStartRef.current = { x: t.clientX, y: t.clientY };
   }
 
+  function onTouchMove(e: ReactTouchEvent) {
+    if (e.touches.length < 2 || !pinchRef.current) return;
+
+    // The browser must not turn a two-finger gesture into page scrolling.
+    e.preventDefault();
+
+    const distance = getTouchDistance(e);
+    if (!distance) return;
+
+    const { startDistance, startZoom } = pinchRef.current;
+    const nextZoom = startZoom * (distance / startDistance);
+    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
+  }
+
   function onTouchEnd(e: ReactTouchEvent) {
+    if (e.touches.length < 2) {
+      pinchRef.current = null;
+    }
+
+    // Never turn a pinch gesture into a page swipe.
+    if (e.touches.length > 0 || pinchRef.current) {
+      touchStartRef.current = null;
+      return;
+    }
+
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
+
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
-    // Only treat clearly horizontal swipes as a page turn, so vertical
-    // scrolling on a zoomed-in page still works normally.
+
+    // Only treat clearly horizontal single-finger swipes as a page turn.
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       if (dx < 0) goNext();
       else goPrev();
@@ -231,16 +265,28 @@ export default function PdfReader({ url, title }: { url: string; title: string }
             +
           </button>
         </div>
-        {numPages > 0 && (
-          <span className="text-xs font-medium text-ink/60">
-            Page {pageNum} of {numPages}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {numPages > 0 && (
+            <span className="text-xs font-medium text-ink/60">
+              Page {pageNum} of {numPages}
+            </span>
+          )}
+          <a
+            href={url}
+            download
+            aria-label="Download PDF"
+            className={toolbarBtn}
+            title="Download PDF"
+          >
+            ↓
+          </a>
+        </div>
       </div>
 
       <div
         ref={containerRef}
         onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         className="relative flex min-h-[65vh] items-start justify-center overflow-auto bg-emerald-50/40 p-2 sm:p-4"
         style={{ touchAction: 'pan-x pan-y' }}
@@ -273,7 +319,7 @@ export default function PdfReader({ url, title }: { url: string; title: string }
                 <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
               </div>
             )}
-            <canvas ref={canvasRef} className="max-w-full shadow-sm" aria-label={`${title} — page ${pageNum}`} />
+            <div className="min-w-full flex justify-center"><canvas ref={canvasRef} className="shrink-0 shadow-sm" aria-label={`${title} — page ${pageNum}`} /></div>
           </>
         )}
       </div>
