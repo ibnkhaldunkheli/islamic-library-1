@@ -130,3 +130,4 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
   english: 'English',
   arabic: 'العربية',
 };
+
