@@ -145,6 +145,9 @@ export default function PdfReader({
         if (cancelled) return;
 
         const unscaledWidth = page.getViewport({ scale: 1 }).width;
+
+        if (!container) return;
+
         const fitScale = (container.clientWidth / unscaledWidth) * zoom;
         const viewport = page.getViewport({ scale: fitScale });
 
