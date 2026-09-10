@@ -18,6 +18,11 @@ export default async function AudioDetailPage({ params }: { params: { id: string
   const lecture = data as AudioLecture | null;
   if (!lecture) notFound();
 
+  // Fire-and-forget-style counter bump (see the matching note on the book
+  // detail page) — used for "Most played" sorting later and the admin's
+  // view-count visibility. Cannot touch anything besides this counter.
+  await supabase.rpc('increment_audio_view', { p_audio_id: lecture.id });
+
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-5">
       <div className="flex items-start justify-between gap-3">
@@ -35,7 +40,7 @@ export default async function AudioDetailPage({ params }: { params: { id: string
 
       {lecture.description && <p className="text-sm text-ink/70">{lecture.description}</p>}
 
-      <AudioPlayer src={lecture.audio_url} title={lecture.title} />
+      <AudioPlayer src={lecture.audio_url} title={lecture.title} lectureId={lecture.id} />
     </div>
   );
 }

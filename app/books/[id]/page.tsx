@@ -6,14 +6,13 @@ import type { Book } from '@/lib/types';
 import { LANGUAGE_LABELS } from '@/lib/types';
 import SaveButton from '@/components/SaveButton';
 import PdfReader from '@/components/PdfReader';
+import BookCard from '@/components/BookCard';
 
 export const revalidate = 0;
 
 // Uses the admin's SEO title/description when set, falling back to the
 // book's normal title/description so pages without SEO fields filled in
-// still get sensible metadata. The seo_title/seo_description values
-// themselves are never rendered anywhere in the visible page — only here,
-// in <head> metadata for search engines and link previews.
+// still get sensible metadata.
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const supabase = createClient();
   const { data } = await supabase
@@ -41,6 +40,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 
 export default async function BookDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
+
   const { data } = await supabase
     .from('books')
     .select('*, categories(*), scholars(*)')
@@ -49,6 +49,37 @@ export default async function BookDetailPage({ params }: { params: { id: string 
 
   const book = data as Book | null;
   if (!book) notFound();
+
+  // Increment the book's view count.
+  await supabase.rpc('increment_book_view', { p_book_id: book.id });
+
+  // Find related books from the same category first.
+  // If there are none, fall back to books by the same scholar.
+  let related: Book[] = [];
+
+  if (book.category_id) {
+    const { data: relatedData } = await supabase
+      .from('books')
+      .select('*, categories(*)')
+      .eq('category_id', book.category_id)
+      .neq('id', book.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    related = (relatedData ?? []) as Book[];
+  }
+
+  if (related.length === 0 && book.scholar_id) {
+    const { data: relatedData } = await supabase
+      .from('books')
+      .select('*, categories(*)')
+      .eq('scholar_id', book.scholar_id)
+      .neq('id', book.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    related = (relatedData ?? []) as Book[];
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -68,15 +99,18 @@ export default async function BookDetailPage({ params }: { params: { id: string 
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
               {LANGUAGE_LABELS[book.language]}
             </span>
+
             {book.categories?.name && (
               <span className="rounded-full bg-paper px-2 py-0.5 text-[11px] font-medium text-ink/60 ring-1 ring-line">
                 {book.categories.name}
               </span>
             )}
           </div>
+
           <h1 className="mt-2 text-2xl font-bold text-ink" dir="auto">
             {book.title}
           </h1>
+
           {book.scholars ? (
             <Link
               href={`/ulama/${book.scholars.id}`}
@@ -93,6 +127,7 @@ export default async function BookDetailPage({ params }: { params: { id: string 
             )
           )}
         </div>
+
         <SaveButton itemType="book" itemId={book.id} />
       </div>
 
@@ -102,11 +137,11 @@ export default async function BookDetailPage({ params }: { params: { id: string 
         </p>
       )}
 
-      {/* In-app PDF reader. Renders the same public Supabase Storage PDF used
-          before, but inside the site instead of the device's native PDF
-          viewer. Read-only: writes to the book-pdfs bucket are still blocked
-          for anyone but the admin, enforced by RLS (see supabase/schema.sql). */}
-      <PdfReader url={book.pdf_url} title={book.title} />
+      <PdfReader
+        url={book.pdf_url}
+        title={book.title}
+        bookId={book.id}
+      />
 
       <a
         href={book.pdf_url}
@@ -116,6 +151,20 @@ export default async function BookDetailPage({ params }: { params: { id: string 
       >
         Trouble viewing? Open the PDF in a new tab
       </a>
+
+      {related.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold text-ink">
+            More like this
+          </h2>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+            {related.map((b) => (
+              <BookCard key={b.id} book={b} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

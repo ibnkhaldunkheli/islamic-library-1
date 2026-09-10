@@ -192,7 +192,11 @@ supabase/schema.sql         Database tables + RLS security policies
 
 - "Saved" items are stored in the visitor's browser (no account needed for
   normal users), matching the brief's "save locally" option.
-- "Continue reading / continue listening" isn't implemented in this first
-  version — it's a natural next feature if you'd like it added later
-  (it would need a small `progress` table plus a normal-user login, since
-  progress has to be tied to *someone*).
+- "Continue reading" and "Continue listening" are implemented the same
+  way — the last page/playback position is remembered on-device (no
+  account or extra database table needed) and surfaced as a "Continue…"
+  section on the home page when there's something in progress.
+- If you're updating an existing deployment (not a fresh install), run
+  `supabase/migrations/004_arabic_language_and_view_counts.sql` once in
+  the SQL Editor to add the Arabic language option and view-count
+  tracking used by "Most read" sorting.

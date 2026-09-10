@@ -4,6 +4,8 @@ import BookCard from '@/components/BookCard';
 import AudioCard from '@/components/AudioCard';
 import EmptyState from '@/components/EmptyState';
 import type { Book, AudioLecture, Category } from '@/lib/types';
+import { LANGUAGES, LANGUAGE_LABELS } from '@/lib/types';
+import ContinueSection from '@/components/ContinueSection';
 
 export const revalidate = 0;
 
@@ -57,17 +59,22 @@ export default async function HomePage() {
           </Link>
         </div>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          {(['pashto', 'urdu', 'english'] as const).map((lang) => (
+          {LANGUAGES.map((lang) => (
             <Link
               key={lang}
               href={`/books?language=${lang}`}
               className="rounded-full border border-emerald-600/30 bg-white px-4 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
             >
-              {lang === 'pashto' ? 'پښتو' : lang === 'urdu' ? 'اردو' : 'English'}
+              {LANGUAGE_LABELS[lang]}
             </Link>
           ))}
         </div>
       </section>
+
+      {/* Client-side: reads each visitor's local reading/listening progress
+          and renders nothing when there is none, so it's invisible to new
+          visitors and doesn't alter the page for anyone without progress. */}
+      <ContinueSection />
 
       {allCategories.length > 0 && (
         <section>

@@ -81,6 +81,7 @@ export default function AdminCategoriesPage() {
             <option value="pashto">Pashto</option>
             <option value="urdu">Urdu</option>
             <option value="english">English</option>
+            <option value="arabic">Arabic</option>
           </select>
         </div>
 

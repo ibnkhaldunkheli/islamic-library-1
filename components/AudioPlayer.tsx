@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getProgress, setProgress, clearProgress } from '@/lib/progress';
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return '0:00';
@@ -9,27 +10,62 @@ function formatTime(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function AudioPlayer({ src, title }: { src: string; title: string }) {
+export default function AudioPlayer({
+  src,
+  title,
+  lectureId,
+}: {
+  src: string;
+  title: string;
+  // Optional: when provided, the player remembers playback position on
+  // this device (same on-device approach as "Saved") and resumes there
+  // next time, powering the "Continue listening" section on the home page.
+  lectureId?: string;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
+  const lastSavedRef = useRef(0);
 
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    const onTime = () => setCurrent(el.currentTime);
-    const onLoaded = () => setDuration(el.duration);
-    const onEnded = () => setPlaying(false);
+    const onTime = () => {
+      setCurrent(el.currentTime);
+      // Save at most every 5s while playing, so we're not hitting
+      // localStorage on every timeupdate tick (which fires very often).
+      if (lectureId && el.currentTime - lastSavedRef.current >= 5) {
+        lastSavedRef.current = el.currentTime;
+        setProgress('audio', lectureId, el.currentTime);
+      }
+    };
+    const onLoaded = () => {
+      setDuration(el.duration);
+      const saved = lectureId ? getProgress('audio', lectureId) : undefined;
+      if (saved && Number.isFinite(saved) && saved > 0 && saved < el.duration - 2) {
+        el.currentTime = saved;
+        setCurrent(saved);
+      }
+    };
+    const onEnded = () => {
+      setPlaying(false);
+      if (lectureId) clearProgress('audio', lectureId);
+    };
+    const onPause = () => {
+      if (lectureId && el.currentTime > 0) setProgress('audio', lectureId, el.currentTime);
+    };
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('loadedmetadata', onLoaded);
     el.addEventListener('ended', onEnded);
+    el.addEventListener('pause', onPause);
     return () => {
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('loadedmetadata', onLoaded);
       el.removeEventListener('ended', onEnded);
+      el.removeEventListener('pause', onPause);
     };
-  }, []);
+  }, [lectureId]);
 
   const togglePlay = () => {
     const el = audioRef.current;

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import AudioCard from '@/components/AudioCard';
 import EmptyState from '@/components/EmptyState';
 import type { AudioLecture, Language } from '@/lib/types';
+import { LANGUAGES, LANGUAGE_LABELS } from '@/lib/types';
 
 export const revalidate = 0;
 
@@ -28,7 +29,7 @@ export default async function AudioPage({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-ink">Audio lectures</h1>
         <div className="flex gap-2">
-          {(['pashto', 'urdu', 'english'] as const).map((lang) => (
+          {LANGUAGES.map((lang) => (
             <Link
               key={lang}
               href={language === lang ? '/audio' : `/audio?language=${lang}`}
@@ -38,7 +39,7 @@ export default async function AudioPage({
                   : 'border-line bg-white text-ink/80 hover:border-emerald-600'
               }`}
             >
-              {lang === 'pashto' ? 'پښتو' : lang === 'urdu' ? 'اردو' : 'English'}
+              {LANGUAGE_LABELS[lang]}
             </Link>
           ))}
         </div>

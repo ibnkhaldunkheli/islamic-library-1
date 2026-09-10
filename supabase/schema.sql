@@ -1,17 +1,11 @@
 -- =============================================================
 -- Islamic Audio & PDF Library — Database Schema + Security Rules
 -- =============================================================
--- Run this ENTIRE file once in Supabase: Dashboard -> SQL Editor -> New query -> paste -> Run.
--- It creates every table empty (no sample content) and locks down
--- write access at the DATABASE level using Row Level Security (RLS),
--- so permissions are enforced by Postgres itself, not just hidden in the UI.
 
 -- -------------------------------------------------------------
 -- 1. Admins table
 -- -------------------------------------------------------------
--- This table holds the user_id(s) of accounts allowed to manage content.
--- It starts EMPTY. After you create your own login (Supabase Auth),
--- you add yourself here (see README "Create the owner/admin account").
+
 create table if not exists app_admins (
   user_id uuid primary key references auth.users (id) on delete cascade,
   created_at timestamptz not null default now()
@@ -19,17 +13,10 @@ create table if not exists app_admins (
 
 alter table app_admins enable row level security;
 
--- Only an existing admin can view the admin list (prevents users from
--- probing who the admin is). No one can insert/update/delete this table
--- through the API at all — that is done once, safely, via the SQL editor,
--- which uses your Supabase project credentials, not the app.
 create policy "admins can view admin list"
   on app_admins for select
   using (exists (select 1 from app_admins a where a.user_id = auth.uid()));
 
--- -------------------------------------------------------------
--- Helper function: is the current logged-in user an admin?
--- -------------------------------------------------------------
 create or replace function is_admin()
 returns boolean
 language sql
@@ -45,10 +32,11 @@ $$;
 -- -------------------------------------------------------------
 -- 2. Categories
 -- -------------------------------------------------------------
+
 create table if not exists categories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  language text not null check (language in ('pashto', 'urdu', 'english')),
+  language text not null check (language in ('pashto', 'urdu', 'english', 'arabic')),
   created_at timestamptz not null default now()
 );
 
@@ -66,6 +54,7 @@ create policy "only admin can write categories"
 -- -------------------------------------------------------------
 -- 3. Scholars / Ulama
 -- -------------------------------------------------------------
+
 create table if not exists scholars (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -88,27 +77,28 @@ create policy "only admin can write scholars"
 -- -------------------------------------------------------------
 -- 4. Books (PDFs)
 -- -------------------------------------------------------------
+
 create table if not exists books (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   author text,
   description text,
-  language text not null check (language in ('pashto', 'urdu', 'english')),
+  language text not null check (language in ('pashto', 'urdu', 'english', 'arabic')),
   category_id uuid references categories (id) on delete set null,
   cover_url text,
   pdf_url text not null,
   created_at timestamptz not null default now(),
-  -- Optional link to a scholar's dedicated profile (see
-  -- supabase/migrations/003_book_scholar_relationship.sql for the note on
-  -- existing databases). The free-text `author` column above is kept as a
-  -- fallback for writers who don't have a scholar profile yet.
+
+  -- Optional link to a scholar's dedicated profile.
   scholar_id uuid references scholars (id) on delete set null,
-  -- Admin-only SEO / search-discoverability fields (see
-  -- supabase/migrations/002_book_seo_search.sql for the note on existing
-  -- databases). Never rendered as a visible keyword list to visitors.
+
+  -- Admin-only SEO / search-discoverability fields.
   seo_title text,
   seo_description text,
-  search_keywords text
+  search_keywords text,
+
+  -- Number of times this book's page has been opened.
+  view_count integer not null default 0
 );
 
 alter table books enable row level security;
@@ -122,27 +112,40 @@ create policy "only admin can write books"
   using (is_admin())
   with check (is_admin());
 
-create index if not exists books_scholar_id_idx on books (scholar_id);
+create index if not exists books_scholar_id_idx
+  on books (scholar_id);
 
--- Trigram search index (fresh installs only — existing databases should
--- run supabase/migrations/002_book_seo_search.sql instead).
+create index if not exists books_view_count_idx
+  on books (view_count desc);
+
+-- Trigram search index.
 create extension if not exists pg_trgm;
-create index if not exists books_search_keywords_trgm_idx on books using gin (search_keywords gin_trgm_ops);
-create index if not exists books_title_trgm_idx on books using gin (title gin_trgm_ops);
-create index if not exists books_author_trgm_idx on books using gin (author gin_trgm_ops);
+
+create index if not exists books_search_keywords_trgm_idx
+  on books using gin (search_keywords gin_trgm_ops);
+
+create index if not exists books_title_trgm_idx
+  on books using gin (title gin_trgm_ops);
+
+create index if not exists books_author_trgm_idx
+  on books using gin (author gin_trgm_ops);
 
 -- -------------------------------------------------------------
 -- 5. Audio lectures
 -- -------------------------------------------------------------
+
 create table if not exists audio_lectures (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   scholar_id uuid references scholars (id) on delete set null,
   description text,
-  language text not null check (language in ('pashto', 'urdu', 'english')),
+  language text not null check (language in ('pashto', 'urdu', 'english', 'arabic')),
   category_id uuid references categories (id) on delete set null,
   audio_url text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+
+  -- Number of times this lecture has been played.
+  view_count integer not null default 0
 );
 
 alter table audio_lectures enable row level security;
@@ -157,11 +160,41 @@ create policy "only admin can write audio_lectures"
   with check (is_admin());
 
 -- -------------------------------------------------------------
--- 6. Storage buckets (PDFs, audio, cover images, scholar photos)
+-- 6. View counters
 -- -------------------------------------------------------------
--- Public buckets: files are readable by anyone with the link (needed so the
--- in-app PDF viewer and audio player can load them), but nobody can upload,
--- replace, or delete files unless they are in app_admins.
+
+create or replace function increment_book_view(p_book_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update books
+  set view_count = view_count + 1
+  where id = p_book_id;
+$$;
+
+create or replace function increment_audio_view(p_audio_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update audio_lectures
+  set view_count = view_count + 1
+  where id = p_audio_id;
+$$;
+
+grant execute on function increment_book_view(uuid)
+  to anon, authenticated;
+
+grant execute on function increment_audio_view(uuid)
+  to anon, authenticated;
+
+-- -------------------------------------------------------------
+-- 7. Storage buckets
+-- -------------------------------------------------------------
+
 insert into storage.buckets (id, name, public)
 values
   ('book-pdfs', 'book-pdfs', true),
