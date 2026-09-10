@@ -61,7 +61,7 @@ export type AudioLecture = {
 };
 
 export const LANGUAGE_LABELS: Record<Language, string> = {
-  cat > lib/types.ts <<'EOF'
+  
 export type Language = 'pashto' | 'urdu' | 'english' | 'arabic';
 
 // Canonical ordered list of language values, used everywhere a language
