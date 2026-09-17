@@ -162,6 +162,8 @@ export default function PdfReader({
         // applies one uniform scale factor to the page's own aspect ratio,
         // so the rendered canvas can never stretch or distort — it always
         // grows/shrinks the same amount in both directions.
+        if (!container) return;
+        
         const unscaledWidth = page.getViewport({ scale: 1 }).width;
         const fitScale = (container.clientWidth / unscaledWidth) * zoom;
         const viewport = page.getViewport({ scale: fitScale });
