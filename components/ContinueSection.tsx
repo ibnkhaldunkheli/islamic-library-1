@@ -3,30 +3,40 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getRecentProgressIds } from '@/lib/progress';
+import { getRecentProgressIdsCloud } from '@/lib/cloudProgress';
+import { useCurrentUser } from '@/lib/useCurrentUser';
 import BookCard from '@/components/BookCard';
 import AudioCard from '@/components/AudioCard';
 import type { Book, AudioLecture } from '@/lib/types';
 
-// Renders "Continue reading" / "Continue listening" rows on the home page,
-// sourced entirely from this device's local progress (see lib/progress.ts —
-// same on-device approach as Saved). Renders nothing at all when the
-// visitor has no in-progress items, so the home page looks exactly as
-// before for new visitors.
+// Renders "Continue reading" / "Continue listening" rows on the home page.
+// Signed-in visitors get their synced cloud progress; everyone else gets
+// this device's local progress (see lib/progress.ts — same on-device
+// approach as Saved, no account needed). Renders nothing at all when there
+// is no in-progress item, so the home page looks exactly as before for new
+// visitors.
 export default function ContinueSection() {
+  const { user, loading: userLoading } = useCurrentUser();
   const [books, setBooks] = useState<Book[]>([]);
   const [audio, setAudio] = useState<AudioLecture[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (userLoading) return;
     const load = async () => {
-      const bookIds = getRecentProgressIds('book');
-      const audioIds = getRecentProgressIds('audio');
+      const supabase = createClient();
+      const [bookIds, audioIds] = user
+        ? await Promise.all([
+            getRecentProgressIdsCloud(supabase, user.id, 'book'),
+            getRecentProgressIdsCloud(supabase, user.id, 'audio'),
+          ])
+        : [getRecentProgressIds('book'), getRecentProgressIds('audio')];
+
       if (bookIds.length === 0 && audioIds.length === 0) {
         setLoaded(true);
         return;
       }
 
-      const supabase = createClient();
       const [{ data: bookData }, { data: audioData }] = await Promise.all([
         bookIds.length
           ? supabase.from('books').select('*, categories(*)').in('id', bookIds)
@@ -44,7 +54,7 @@ export default function ContinueSection() {
       setLoaded(true);
     };
     load();
-  }, []);
+  }, [user, userLoading]);
 
   if (!loaded || (books.length === 0 && audio.length === 0)) return null;
 

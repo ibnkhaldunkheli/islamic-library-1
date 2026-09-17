@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Book, Category, Language, Scholar } from '@/lib/types';
+import type { Book, Category, Language, PermissionStatus, Scholar } from '@/lib/types';
+import { PERMISSION_STATUS_LABELS } from '@/lib/types';
+import { getStorageProvider } from '@/lib/storage';
 
 const emptyForm = {
   title: '',
@@ -14,6 +16,11 @@ const emptyForm = {
   seo_title: '',
   seo_description: '',
   search_keywords: '',
+  permission_status: 'unknown' as PermissionStatus,
+  permission_note: '',
+  copyright_note: '',
+  source_note: '',
+  featured: false,
 };
 
 export default function AdminBooksPage() {
@@ -56,13 +63,7 @@ export default function AdminBooksPage() {
     setShowSeo(false);
   };
 
-  const uploadFile = async (bucket: string, file: File) => {
-    const path = `${crypto.randomUUID()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file);
-    if (uploadError) throw uploadError;
-    const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path);
-    return pub.publicUrl;
-  };
+  const storageProvider = getStorageProvider();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,13 +75,14 @@ export default function AdminBooksPage() {
         throw new Error('Please choose a PDF file.');
       }
 
-      let pdf_url: string | undefined;
-      let cover_url: string | undefined;
-      if (pdfFile) pdf_url = await uploadFile('book-pdfs', pdfFile);
-      if (coverFile) cover_url = await uploadFile('book-covers', coverFile);
+      // Goes through the storage-provider abstraction (lib/storage) rather
+      // than calling supabase.storage directly — file validation happens
+      // inside the provider itself now. See lib/storage/README.md for why
+      // this indirection exists (it's what lets a second provider be added
+      // later without touching this page).
+      const pdf = pdfFile ? await storageProvider.upload('book-pdf', pdfFile) : undefined;
+      const cover = coverFile ? await storageProvider.upload('book-cover', coverFile) : undefined;
 
-      console.log('SELECTED LANGUAGE:', form.language);
-      
       const payload: Partial<Book> = {
         title: form.title.trim(),
         author: form.author.trim() || null,
@@ -91,20 +93,27 @@ export default function AdminBooksPage() {
         seo_title: form.seo_title.trim() || null,
         seo_description: form.seo_description.trim() || null,
         search_keywords: form.search_keywords.trim() || null,
+        permission_status: form.permission_status,
+        permission_note: form.permission_note.trim() || null,
+        copyright_note: form.copyright_note.trim() || null,
+        source_note: form.source_note.trim() || null,
+        featured: form.featured,
       };
-      if (pdf_url) payload.pdf_url = pdf_url;
-      if (cover_url) payload.cover_url = cover_url;
+      if (pdf) {
+        payload.pdf_url = pdf.url;
+        payload.storage_provider = pdf.provider;
+        payload.storage_bucket = pdf.bucket;
+        payload.storage_path = pdf.path;
+        payload.file_size = pdf.size;
+        payload.mime_type = pdf.mimeType;
+      }
+      if (cover) payload.cover_url = cover.url;
 
       const result = editingId
         ? await supabase.from('books').update(payload).eq('id', editingId)
         : await supabase.from('books').insert(payload);
 
-      if (result.error) {
-        console.error('BOOK SAVE ERROR:', result.error);
-            throw new Error(
-                `${result.error.message} | code: ${result.error.code} | details: ${result.error.details ?? ''}`
-        );
-      }
+      if (result.error) throw result.error;
 
       resetForm();
       await load();
@@ -127,17 +136,34 @@ export default function AdminBooksPage() {
       seo_title: b.seo_title ?? '',
       seo_description: b.seo_description ?? '',
       search_keywords: b.search_keywords ?? '',
+      permission_status: b.permission_status ?? 'unknown',
+      permission_note: b.permission_note ?? '',
+      copyright_note: b.copyright_note ?? '',
+      source_note: b.source_note ?? '',
+      featured: b.featured ?? false,
     });
     setPdfFile(null);
     setCoverFile(null);
     setShowSeo(Boolean(b.seo_title || b.seo_description || b.search_keywords));
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (b: Book) => {
     if (!confirm('Delete this book? This cannot be undone.')) return;
-    const { error: delError } = await supabase.from('books').delete().eq('id', id);
-    if (delError) setError(delError.message);
-    else await load();
+    const { error: delError } = await supabase.from('books').delete().eq('id', b.id);
+    if (delError) {
+      setError(delError.message);
+      return;
+    }
+    // Best-effort storage cleanup: the database row is already gone (the
+    // part that matters for RLS/visibility), so a failure here — e.g. the
+    // file was already removed, or a network hiccup — is logged but never
+    // blocks or reverses the deletion the admin just confirmed.
+    if (b.storage_bucket && b.storage_path && b.storage_provider) {
+      storageProvider
+        .remove({ provider: b.storage_provider, bucket: b.storage_bucket, path: b.storage_path })
+        .catch((err) => console.error('Could not remove stored PDF file:', err));
+    }
+    await load();
   };
 
   return (
@@ -223,6 +249,52 @@ export default function AdminBooksPage() {
             &quot;Books by this Shaykh&quot;. The &quot;Author / Alim name&quot; field above still
             controls the label shown on the book itself.
           </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-ink/70">
+          <input
+            type="checkbox"
+            checked={form.featured}
+            onChange={(e) => setForm({ ...form, featured: e.target.checked })}
+          />
+          Feature on homepage
+        </label>
+
+        <div className="rounded-card border border-line p-3.5">
+          <p className="label mb-2">Permission &amp; trust</p>
+          <p className="mb-2 text-xs text-ink/50">
+            Only publish content you have the right to share. This is shown to visitors on
+            the book page, so it should be accurate.
+          </p>
+          <select
+            className="input"
+            value={form.permission_status}
+            onChange={(e) => setForm({ ...form, permission_status: e.target.value as PermissionStatus })}
+          >
+            {Object.entries(PERMISSION_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <textarea
+            className="input mt-2 min-h-[50px]"
+            placeholder="Permission note (optional, shown to visitors)"
+            value={form.permission_note}
+            onChange={(e) => setForm({ ...form, permission_note: e.target.value })}
+          />
+          <textarea
+            className="input mt-2 min-h-[50px]"
+            placeholder="Copyright note (optional, shown to visitors)"
+            value={form.copyright_note}
+            onChange={(e) => setForm({ ...form, copyright_note: e.target.value })}
+          />
+          <input
+            className="input mt-2"
+            placeholder="Source (optional, shown to visitors)"
+            value={form.source_note}
+            onChange={(e) => setForm({ ...form, source_note: e.target.value })}
+          />
         </div>
 
         <div className="rounded-card border border-line">
@@ -316,7 +388,14 @@ export default function AdminBooksPage() {
         {books.map((b) => (
           <div key={b.id} className="flex items-center justify-between gap-3 p-4">
             <div>
-              <p className="text-sm font-medium text-ink">{b.title}</p>
+              <p className="text-sm font-medium text-ink">
+                {b.title}
+                {b.featured && (
+                  <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                    Featured
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-ink/50">
                 {b.author ?? '—'} · {b.language}
                 {b.categories?.name ? ` · ${b.categories.name}` : ''}
@@ -327,7 +406,7 @@ export default function AdminBooksPage() {
               <button onClick={() => handleEdit(b)} className="btn-secondary">
                 Edit
               </button>
-              <button onClick={() => handleDelete(b.id)} className="btn-danger">
+              <button onClick={() => handleDelete(b)} className="btn-danger">
                 Delete
               </button>
             </div>

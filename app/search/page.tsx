@@ -4,6 +4,7 @@ import BookCard from '@/components/BookCard';
 import AudioCard from '@/components/AudioCard';
 import EmptyState from '@/components/EmptyState';
 import type { Book, AudioLecture, Scholar } from '@/lib/types';
+import { normalizeArabic } from '@/lib/arabicNormalize';
 
 export const revalidate = 0;
 
@@ -25,6 +26,12 @@ export default async function SearchPage({
     // comma or parenthesis (common when pasting a list of keywords) can't
     // break the filter string.
     const escaped = q.replace(/[,()]/g, ' ').trim();
+    // Arabic-diacritic-aware version of the same query (see
+    // lib/arabicNormalize.ts), matched against the generated
+    // `search_normalized` column so "سترة" also finds "سُتْرَة". This is a
+    // no-op for Pashto/Urdu/English queries, since none of their
+    // characters are touched by the normalization.
+    const normalized = normalizeArabic(escaped);
 
     // Category names live on a joined table, which PostgREST's or() can't
     // filter directly — so find matching category ids first, then fold
@@ -45,17 +52,21 @@ export default async function SearchPage({
     // SEO/search fields (seo_title, seo_description, search_keywords) all
     // count as a match — so a Shaykh's name or an alternative spelling
     // entered by the admin surfaces a book even when those exact words
-    // aren't in the visible title.
+    // aren't in the visible title. search_normalized adds diacritic-
+    // insensitive Arabic matching on top of all of that.
     bookQuery = bookQuery.or(
       `title.ilike.%${escaped}%,author.ilike.%${escaped}%,description.ilike.%${escaped}%,` +
-        `seo_title.ilike.%${escaped}%,seo_description.ilike.%${escaped}%,search_keywords.ilike.%${escaped}%` +
+        `seo_title.ilike.%${escaped}%,seo_description.ilike.%${escaped}%,search_keywords.ilike.%${escaped}%,` +
+        `search_normalized.ilike.%${normalized}%` +
         categoryClause +
         scholarClause
     );
     audioQuery = audioQuery.or(
-      `title.ilike.%${escaped}%,description.ilike.%${escaped}%${categoryClause}${scholarClause}`
+      `title.ilike.%${escaped}%,description.ilike.%${escaped}%,search_normalized.ilike.%${normalized}%${categoryClause}${scholarClause}`
     );
-    scholarQuery = scholarQuery.ilike('name', `%${escaped}%`);
+    scholarQuery = scholarQuery.or(
+      `name.ilike.%${escaped}%,search_normalized.ilike.%${normalized}%`
+    );
   }
   if (category) {
     bookQuery = bookQuery.eq('category_id', category);

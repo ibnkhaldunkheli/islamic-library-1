@@ -12,7 +12,15 @@ export const revalidate = 0;
 export default async function HomePage() {
   const supabase = createClient();
 
-  const [{ data: books }, { data: audio }, { data: categories }] = await Promise.all([
+  const [
+    { data: books },
+    { data: audio },
+    { data: categories },
+    { data: featuredBooksData },
+    { data: featuredAudioData },
+    { data: topBooksData },
+    { data: topAudioData },
+  ] = await Promise.all([
     supabase
       .from('books')
       .select('*, categories(*)')
@@ -24,11 +32,39 @@ export default async function HomePage() {
       .order('created_at', { ascending: false })
       .limit(6),
     supabase.from('categories').select('*').order('name'),
+    supabase
+      .from('books')
+      .select('*, categories(*)')
+      .eq('featured', true)
+      .order('created_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('audio_lectures')
+      .select('*, scholars(*), categories(*)')
+      .eq('featured', true)
+      .order('created_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('books')
+      .select('*, categories(*)')
+      .gt('view_count', 0)
+      .order('view_count', { ascending: false })
+      .limit(6),
+    supabase
+      .from('audio_lectures')
+      .select('*, scholars(*), categories(*)')
+      .gt('view_count', 0)
+      .order('view_count', { ascending: false })
+      .limit(6),
   ]);
 
   const recentBooks = (books ?? []) as Book[];
   const recentAudio = (audio ?? []) as AudioLecture[];
   const allCategories = (categories ?? []) as Category[];
+  const featuredBooks = (featuredBooksData ?? []) as Book[];
+  const featuredAudio = (featuredAudioData ?? []) as AudioLecture[];
+  const topBooks = (topBooksData ?? []) as Book[];
+  const topAudio = (topAudioData ?? []) as AudioLecture[];
 
   return (
     <div className="flex flex-col gap-14">
@@ -75,6 +111,26 @@ export default async function HomePage() {
           and renders nothing when there is none, so it's invisible to new
           visitors and doesn't alter the page for anyone without progress. */}
       <ContinueSection />
+
+      {(featuredBooks.length > 0 || featuredAudio.length > 0) && (
+        <section>
+          <h2 className="mb-4 text-lg font-bold text-ink">Featured</h2>
+          {featuredBooks.length > 0 && (
+            <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
+              {featuredBooks.map((b) => (
+                <BookCard key={b.id} book={b} />
+              ))}
+            </div>
+          )}
+          {featuredAudio.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+              {featuredAudio.map((a) => (
+                <AudioCard key={a.id} lecture={a} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {allCategories.length > 0 && (
         <section>
@@ -134,6 +190,26 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {(topBooks.length > 0 || topAudio.length > 0) && (
+        <section>
+          <h2 className="mb-4 text-lg font-bold text-ink">Most popular</h2>
+          {topBooks.length > 0 && (
+            <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
+              {topBooks.map((b) => (
+                <BookCard key={b.id} book={b} />
+              ))}
+            </div>
+          )}
+          {topAudio.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+              {topAudio.map((a) => (
+                <AudioCard key={a.id} lecture={a} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -17,6 +17,9 @@ export default async function UlamaPage() {
   ]);
 
   const scholars = (scholarData ?? []) as Scholar[];
+  // Featured scholars surface first, then alphabetical within each group
+  // (the query above already orders by name, so this sort is stable).
+  scholars.sort((a, b) => Number(b.featured ?? false) - Number(a.featured ?? false));
 
   const bookCounts = new Map<string, number>();
   for (const row of bookLinks ?? []) {
@@ -60,6 +63,11 @@ export default async function UlamaPage() {
                 </div>
                 <h3 className="font-semibold text-ink" dir="auto">
                   {s.name}
+                  {s.featured && (
+                    <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                      Featured
+                    </span>
+                  )}
                 </h3>
                 {s.bio && (
                   <p className="line-clamp-3 text-sm text-ink/60" dir="auto">

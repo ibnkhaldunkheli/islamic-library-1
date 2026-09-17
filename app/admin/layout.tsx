@@ -9,6 +9,8 @@ const sections = [
   { href: '/admin/audio', label: 'Audio' },
   { href: '/admin/ulama', label: 'Ulama' },
   { href: '/admin/categories', label: 'Categories' },
+  { href: '/admin/reports', label: 'Reports' },
+  { href: '/admin/announcements', label: 'Announcements' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { getSavedIds, toggleSaved } from '@/lib/saved';
+import { getSavedIdsCloud, toggleSavedCloud } from '@/lib/cloudSaved';
+import { useCurrentUser } from '@/lib/useCurrentUser';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SaveButton({
   itemType,
@@ -10,21 +13,34 @@ export default function SaveButton({
   itemType: 'book' | 'audio';
   itemId: string;
 }) {
+  const { user } = useCurrentUser();
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setSaved(getSavedIds(itemType).includes(itemId));
-  }, [itemType, itemId]);
+    // Signed-in visitors get the cloud-synced favorite state; everyone
+    // else keeps the existing on-device behavior unchanged (see
+    // lib/saved.ts — no account has ever been required for this).
+    if (user) {
+      getSavedIdsCloud(createClient(), user.id, itemType).then((ids) => setSaved(ids.includes(itemId)));
+    } else {
+      setSaved(getSavedIds(itemType).includes(itemId));
+    }
+  }, [itemType, itemId, user]);
 
   return (
     <button
       type="button"
       aria-label={saved ? 'Remove from saved' : 'Save for later'}
-      onClick={(e) => {
+      onClick={async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const next = toggleSaved(itemType, itemId);
-        setSaved(next);
+        if (user) {
+          const next = await toggleSavedCloud(createClient(), user.id, itemType, itemId);
+          setSaved(next);
+        } else {
+          const next = toggleSaved(itemType, itemId);
+          setSaved(next);
+        }
       }}
       className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-emerald-700 shadow-sm ring-1 ring-line hover:bg-emerald-50"
     >

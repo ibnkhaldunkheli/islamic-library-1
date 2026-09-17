@@ -8,14 +8,15 @@ const links = [
   { href: '/categories', label: 'Categories' },
   { href: '/search', label: 'Search' },
   { href: '/saved', label: 'Saved' },
+  { href: '/downloads', label: 'Downloads' },
 ];
 
 export default async function NavBar() {
-  const { isAdmin } = await getIsAdmin();
+  const { user, isAdmin } = await getIsAdmin();
 
   return (
     <header className="border-b border-line bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-4">
         <Link href="/" className="flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-base font-bold text-white">
             م
@@ -31,12 +32,26 @@ export default async function NavBar() {
           ))}
         </nav>
 
-        <Link
-          href={isAdmin ? '/admin' : '/login'}
-          className="rounded-card border border-line px-3.5 py-2 text-sm font-medium hover:bg-emerald-50"
-        >
-          {isAdmin ? 'Admin dashboard' : 'Owner login'}
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Visitor account control — separate from the owner/admin login
+              below. A signed-in non-admin visitor sees their account link;
+              an admin doesn't need this too, since /admin already covers
+              them, so it's hidden for that case to avoid clutter. */}
+          {!isAdmin && (
+            <Link
+              href={user ? '/account' : '/account/login'}
+              className="rounded-card border border-line px-3.5 py-2 text-sm font-medium hover:bg-emerald-50"
+            >
+              {user ? 'Account' : 'Sign in'}
+            </Link>
+          )}
+          <Link
+            href={isAdmin ? '/admin' : '/login'}
+            className="rounded-card border border-line px-3.5 py-2 text-sm font-medium hover:bg-emerald-50"
+          >
+            {isAdmin ? 'Admin dashboard' : 'Owner login'}
+          </Link>
+        </div>
       </div>
 
       <nav className="flex items-center gap-5 overflow-x-auto border-t border-line px-5 py-2.5 text-sm font-medium text-ink/70 md:hidden">

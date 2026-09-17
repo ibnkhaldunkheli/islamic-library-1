@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import type { Scholar, Book, AudioLecture } from '@/lib/types';
+import { LANGUAGE_LABELS } from '@/lib/types';
 import BookCard from '@/components/BookCard';
 import AudioCard from '@/components/AudioCard';
 import EmptyState from '@/components/EmptyState';
@@ -73,7 +74,27 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
           <h1 className="text-2xl font-bold text-ink" dir="auto">
             {scholar.name}
           </h1>
-          <p className="mt-1 text-sm text-ink/50">
+          {scholar.arabic_name && (
+            <p className="mt-0.5 text-lg text-ink/60" dir="rtl">
+              {scholar.arabic_name}
+            </p>
+          )}
+          {scholar.aliases && scholar.aliases.length > 0 && (
+            <p className="mt-0.5 text-xs text-ink/40">Also known as: {scholar.aliases.join(', ')}</p>
+          )}
+          {scholar.languages && scholar.languages.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+              {scholar.languages.map((lang) => (
+                <span
+                  key={lang}
+                  className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                >
+                  {LANGUAGE_LABELS[lang]}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-1.5 text-sm text-ink/50">
             {books.length} {books.length === 1 ? 'book' : 'books'}
             {audio.length > 0 ? ` · ${audio.length} ${audio.length === 1 ? 'lecture' : 'lectures'}` : ''}
           </p>

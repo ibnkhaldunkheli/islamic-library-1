@@ -3,21 +3,29 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getSavedIds } from '@/lib/saved';
+import { getSavedIdsCloud } from '@/lib/cloudSaved';
+import { useCurrentUser } from '@/lib/useCurrentUser';
 import BookCard from '@/components/BookCard';
 import AudioCard from '@/components/AudioCard';
 import EmptyState from '@/components/EmptyState';
 import type { Book, AudioLecture } from '@/lib/types';
 
 export default function SavedPage() {
+  const { user, loading: userLoading } = useCurrentUser();
   const [books, setBooks] = useState<Book[]>([]);
   const [audio, setAudio] = useState<AudioLecture[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (userLoading) return;
     const load = async () => {
       const supabase = createClient();
-      const bookIds = getSavedIds('book');
-      const audioIds = getSavedIds('audio');
+      const [bookIds, audioIds] = user
+        ? await Promise.all([
+            getSavedIdsCloud(supabase, user.id, 'book'),
+            getSavedIdsCloud(supabase, user.id, 'audio'),
+          ])
+        : [getSavedIds('book'), getSavedIds('audio')];
 
       const [{ data: bookData }, { data: audioData }] = await Promise.all([
         bookIds.length
@@ -33,7 +41,7 @@ export default function SavedPage() {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [user, userLoading]);
 
   const isEmpty = !loading && books.length === 0 && audio.length === 0;
 
@@ -41,7 +49,9 @@ export default function SavedPage() {
     <div className="flex flex-col gap-8">
       <h1 className="text-2xl font-bold text-ink">Saved</h1>
       <p className="-mt-4 text-sm text-ink/60">
-        Saved items are kept on this device. They&apos;re not tied to an account.
+        {user
+          ? 'Synced to your account — available on any device you sign in on.'
+          : 'Saved items are kept on this device. Sign in to sync them across devices.'}
       </p>
 
       {isEmpty && (

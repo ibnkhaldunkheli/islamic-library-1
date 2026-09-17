@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { AudioLecture, Category, Scholar, Language } from '@/lib/types';
+import type { AudioLecture, Category, Scholar, Language, PermissionStatus } from '@/lib/types';
+import { PERMISSION_STATUS_LABELS } from '@/lib/types';
+import { getStorageProvider } from '@/lib/storage';
 
 const emptyForm = {
   title: '',
@@ -10,6 +12,14 @@ const emptyForm = {
   language: 'english' as Language,
   category_id: '',
   scholar_id: '',
+  permission_status: 'unknown' as PermissionStatus,
+  permission_note: '',
+  copyright_note: '',
+  source_note: '',
+  downloadable: true,
+  series_name: '',
+  part_number: '',
+  featured: false,
 };
 
 export default function AdminAudioPage() {
@@ -48,6 +58,8 @@ export default function AdminAudioPage() {
     setEditingId(null);
   };
 
+  const storageProvider = getStorageProvider();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -58,14 +70,9 @@ export default function AdminAudioPage() {
         throw new Error('Please choose an audio file.');
       }
 
-      let audio_url: string | undefined;
-      if (audioFile) {
-        const path = `${crypto.randomUUID()}-${audioFile.name}`;
-        const { error: uploadError } = await supabase.storage.from('audio-files').upload(path, audioFile);
-        if (uploadError) throw uploadError;
-        const { data: pub } = supabase.storage.from('audio-files').getPublicUrl(path);
-        audio_url = pub.publicUrl;
-      }
+      // Goes through the storage-provider abstraction (lib/storage) rather
+      // than calling supabase.storage directly — see lib/storage/README.md.
+      const audio = audioFile ? await storageProvider.upload('audio-file', audioFile) : undefined;
 
       const payload: Partial<AudioLecture> = {
         title: form.title.trim(),
@@ -73,8 +80,23 @@ export default function AdminAudioPage() {
         language: form.language,
         category_id: form.category_id || null,
         scholar_id: form.scholar_id || null,
+        permission_status: form.permission_status,
+        permission_note: form.permission_note.trim() || null,
+        copyright_note: form.copyright_note.trim() || null,
+        source_note: form.source_note.trim() || null,
+        downloadable: form.downloadable,
+        series_name: form.series_name.trim() || null,
+        part_number: form.part_number.trim() ? Number(form.part_number) : null,
+        featured: form.featured,
       };
-      if (audio_url) payload.audio_url = audio_url;
+      if (audio) {
+        payload.audio_url = audio.url;
+        payload.storage_provider = audio.provider;
+        payload.storage_bucket = audio.bucket;
+        payload.storage_path = audio.path;
+        payload.file_size = audio.size;
+        payload.mime_type = audio.mimeType;
+      }
 
       const result = editingId
         ? await supabase.from('audio_lectures').update(payload).eq('id', editingId)
@@ -99,15 +121,34 @@ export default function AdminAudioPage() {
       language: a.language,
       category_id: a.category_id ?? '',
       scholar_id: a.scholar_id ?? '',
+      permission_status: a.permission_status ?? 'unknown',
+      permission_note: a.permission_note ?? '',
+      copyright_note: a.copyright_note ?? '',
+      source_note: a.source_note ?? '',
+      downloadable: a.downloadable ?? true,
+      series_name: a.series_name ?? '',
+      part_number: a.part_number != null ? String(a.part_number) : '',
+      featured: a.featured ?? false,
     });
     setAudioFile(null);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (a: AudioLecture) => {
     if (!confirm('Delete this lecture? This cannot be undone.')) return;
-    const { error: delError } = await supabase.from('audio_lectures').delete().eq('id', id);
-    if (delError) setError(delError.message);
-    else await load();
+    const { error: delError } = await supabase.from('audio_lectures').delete().eq('id', a.id);
+    if (delError) {
+      setError(delError.message);
+      return;
+    }
+    // Best-effort storage cleanup — same reasoning as the books admin
+    // page: the DB row (what matters for RLS/visibility) is already
+    // gone, so a storage-side failure here is logged, never blocking.
+    if (a.storage_bucket && a.storage_path && a.storage_provider) {
+      storageProvider
+        .remove({ provider: a.storage_provider, bucket: a.storage_bucket, path: a.storage_path })
+        .catch((err) => console.error('Could not remove stored audio file:', err));
+    }
+    await load();
   };
 
   return (
@@ -181,6 +222,87 @@ export default function AdminAudioPage() {
           </select>
         </div>
 
+        <div className="rounded-card border border-line p-3.5">
+          <p className="label mb-2">Permission &amp; trust</p>
+          <p className="mb-2 text-xs text-ink/50">
+            Only publish content you have the right to share. This is shown to visitors on
+            the lecture page, so it should be accurate.
+          </p>
+          <select
+            className="input"
+            value={form.permission_status}
+            onChange={(e) => setForm({ ...form, permission_status: e.target.value as PermissionStatus })}
+          >
+            {Object.entries(PERMISSION_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <textarea
+            className="input mt-2 min-h-[50px]"
+            placeholder="Permission note (optional, shown to visitors)"
+            value={form.permission_note}
+            onChange={(e) => setForm({ ...form, permission_note: e.target.value })}
+          />
+          <textarea
+            className="input mt-2 min-h-[50px]"
+            placeholder="Copyright note (optional, shown to visitors)"
+            value={form.copyright_note}
+            onChange={(e) => setForm({ ...form, copyright_note: e.target.value })}
+          />
+          <input
+            className="input mt-2"
+            placeholder="Source (optional, shown to visitors)"
+            value={form.source_note}
+            onChange={(e) => setForm({ ...form, source_note: e.target.value })}
+          />
+          <label className="mt-2 flex items-center gap-2 text-sm text-ink/70">
+            <input
+              type="checkbox"
+              checked={form.downloadable}
+              onChange={(e) => setForm({ ...form, downloadable: e.target.checked })}
+            />
+            Allow download
+          </label>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-ink/70">
+          <input
+            type="checkbox"
+            checked={form.featured}
+            onChange={(e) => setForm({ ...form, featured: e.target.checked })}
+          />
+          Feature on homepage
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Series name (optional)</label>
+            <input
+              className="input"
+              value={form.series_name}
+              onChange={(e) => setForm({ ...form, series_name: e.target.value })}
+              placeholder="e.g. Tafsir Surah Al-Baqarah"
+              dir="auto"
+            />
+          </div>
+          <div>
+            <label className="label">Part number</label>
+            <input
+              type="number"
+              min={1}
+              className="input"
+              value={form.part_number}
+              onChange={(e) => setForm({ ...form, part_number: e.target.value })}
+            />
+          </div>
+        </div>
+        <p className="-mt-2 text-xs text-ink/40">
+          Lectures that share the same series name will show &quot;Part X&quot; and
+          next/previous navigation on the lecture page, ordered by part number.
+        </p>
+
         <div>
           <label className="label">Audio file {editingId && '(leave empty to keep current file)'}</label>
           <input
@@ -210,17 +332,25 @@ export default function AdminAudioPage() {
         {lectures.map((a) => (
           <div key={a.id} className="flex items-center justify-between gap-3 p-4">
             <div>
-              <p className="text-sm font-medium text-ink">{a.title}</p>
+              <p className="text-sm font-medium text-ink">
+                {a.title}
+                {a.featured && (
+                  <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                    Featured
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-ink/50">
                 {a.scholars?.name ?? '—'} · {a.language}
                 {a.categories?.name ? ` · ${a.categories.name}` : ''}
+                {a.series_name ? ` · ${a.series_name}${a.part_number ? ` #${a.part_number}` : ''}` : ''}
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button onClick={() => handleEdit(a)} className="btn-secondary">
                 Edit
               </button>
-              <button onClick={() => handleDelete(a.id)} className="btn-danger">
+              <button onClick={() => handleDelete(a)} className="btn-danger">
                 Delete
               </button>
             </div>
