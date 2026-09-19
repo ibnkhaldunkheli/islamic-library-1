@@ -1,7 +1,22 @@
 import type { MetadataRoute } from "next";
+import { createClient } from "@/lib/supabase/server";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://islamic-library-1-chi.vercel.app";
+
+  const supabase = createClient();
+
+  const { data: books } = await supabase
+    .from("books")
+    .select("id, created_at");
+
+  const bookUrls: MetadataRoute.Sitemap =
+    (books ?? []).map((book) => ({
+      url: `${baseUrl}/books/${book.id}`,
+      lastModified: new Date(book.created_at),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    }));
 
   return [
     {
@@ -34,5 +49,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.7,
     },
+    ...bookUrls,
   ];
-      }
+        }
