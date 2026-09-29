@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #0b1f3a;
+  --blue: #165dbe;
+  --blue-soft: #eaf2ff;
+  --line: #dbe4ef;
+  --paper: #f6f8fb;
+  --ink: #102033;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--paper); color: var(--ink); }
+
+.card { @apply rounded-xl border border-line bg-white; }
+.btn-primary { @apply inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50; }
+.btn-secondary { @apply inline-flex min-h-10 items-center justify-center rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-blue-300 hover:bg-blue-50; }
+.btn-quiet { @apply inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold text-ink/65 transition hover:bg-blue-50 hover:text-blue-700; }
+.btn-danger { @apply inline-flex min-h-10 items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50; }
+.input { @apply w-full rounded-lg border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-ink/40 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100; }
+.label { @apply mb-1.5 block text-sm font-semibold text-ink/80; }
+
+.surface-grid { background-image: linear-gradient(to right, rgba(22,93,190,.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(22,93,190,.045) 1px, transparent 1px); background-size: 32px 32px; }
+.hero-surface { background: radial-gradient(circle at 85% 20%, rgba(71,139,232,.22), transparent 34%), var(--navy); }
+
+:focus-visible { outline: 3px solid #76a9fa; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; } }

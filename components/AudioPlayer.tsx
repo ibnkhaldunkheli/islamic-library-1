@@ -1,0 +1,15 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useAudioPlayer } from '@/components/AudioProvider';
+import Icon from '@/components/Icon';
+
+function formatTime(seconds: number) { if (!Number.isFinite(seconds)) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
+
+export default function AudioPlayer({ src, title, lectureId }: { src: string; title: string; lectureId?: string }) {
+  const player = useAudioPlayer(); const active = player.track?.id === lectureId;
+  useEffect(() => { if (!active) return; }, [active]);
+  function start() { if (active) player.toggle(); else player.playTrack({ src, title, id: lectureId }); }
+  const current = active ? player.current : 0; const duration = active ? player.duration : 0; const playing = active && player.playing;
+  return <div className="card flex flex-col gap-4 p-5" tabIndex={0} role="group" aria-label={`Audio player: ${title}`} onKeyDown={(e) => { if (e.target instanceof HTMLInputElement) return; if (e.key === ' ') { e.preventDefault(); start(); } else if (e.key === 'ArrowRight') player.skip(5); else if (e.key === 'ArrowLeft') player.skip(-5); }}><p className="text-sm font-bold text-navy" dir="auto">{title}</p><input type="range" min={0} max={duration || 0} step={0.1} value={current} onChange={(e) => active && player.seek(Number(e.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-blue-100 accent-blue-600" aria-label="Lecture progress"/><div className="flex justify-between text-xs text-ink/50"><span>{formatTime(current)}</span><span>{formatTime(duration)}</span></div><div className="flex items-center justify-center gap-4"><button type="button" aria-label="Back 15 seconds" onClick={() => active && player.skip(-15)} className="flex h-10 w-10 items-center justify-center rounded-full border border-line hover:bg-blue-50"><Icon name="prev" /></button><button type="button" aria-label={playing ? 'Pause' : 'Play'} onClick={start} className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-700"><Icon name={playing ? 'pause' : 'play'} size={20} /></button><button type="button" aria-label="Forward 15 seconds" onClick={() => active && player.skip(15)} className="flex h-10 w-10 items-center justify-center rounded-full border border-line hover:bg-blue-50"><Icon name="next" /></button></div><div className="flex flex-wrap items-center justify-center gap-1.5">{[0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => <button key={speed} type="button" onClick={() => player.setSpeed(speed)} className={`rounded-md px-2 py-1 text-xs font-bold ${player.speed === speed ? 'bg-blue-600 text-white' : 'text-ink/50 hover:bg-blue-50'}`}>{speed}x</button>)}<button type="button" onClick={() => player.setSleep(player.sleepMinutes ? null : 30)} className="rounded-md px-2 py-1 text-xs font-bold text-ink/50 hover:bg-blue-50">{player.sleepMinutes ? `${player.sleepMinutes}m sleep` : 'Sleep'}</button></div></div>;
+}
