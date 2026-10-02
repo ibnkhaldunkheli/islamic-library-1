@@ -232,3 +232,31 @@ The application shell now follows the BookBase-inspired Maktaba language: a resp
 ## Final consistency pass
 
 The final pass aligns saved items, offline downloads, scholar profiles, book/audio detail pages, account surfaces, admin CRUD screens, and route loading states with the shared Maktaba design system. Authenticated PDF readers restore their saved page from `user_progress` after the stable PDF document is ready, while anonymous readers continue using local progress; progress continues saving both locally and to Supabase for authenticated users.
+
+## PDF Reader V3
+
+The PDF reader was replaced behind the existing `<PdfReader url title bookId />` interface with a modular performance-first PDF.js implementation.
+
+### Architecture
+
+- `components/pdf-reader/PdfDocument.ts` owns one PDF.js document/worker lifecycle and supports Supabase URLs plus IndexedDB offline blobs.
+- `PdfViewport.tsx` owns one internal natural-scroll container and uses `IntersectionObserver` to identify the approximate current page.
+- `PdfPage.tsx` keeps stable page-height placeholders and mounts active canvases only for the current page and nearby pages.
+- `PdfRenderQueue.ts` bounds PDF.js rendering to one task at a time and supports queued-job cancellation.
+- `PdfCache.ts` keeps a small LRU page cache rather than retaining every page forever.
+- `PdfProgress.ts` restores cloud progress for authenticated users and local progress for visitors, with debounced saves and visibility-change persistence.
+- `PdfSearch.ts` extracts text only when search is opened and requested; no text layer is created during normal reading.
+- `PdfToolbar.tsx` provides compact page, zoom, fit, search, fullscreen, and download controls.
+
+### Intentional V3 simplifications
+
+Removed from the reader to prioritize stability and memory usage: thumbnails, rotation, print, swipe-to-page navigation, default text layers, animated page transitions, and complex toolbar modes. Normal vertical scrolling remains the primary interaction. Pinch zoom uses a CSS transform during the gesture and commits the final zoom after release.
+
+### Verification
+
+- PDF.js parsed and opened generated 30-page, 150-page, and 500-page test PDFs; each reported the expected page count and 595×842 first-page dimensions.
+- TypeScript check passed.
+- ESLint passed with pre-existing non-reader advisory warnings in image usage and `AudioProvider` hook dependencies.
+- Production build passed and generated all 24 routes.
+- Static reader audit confirmed no rotation, thumbnail, swipe, print, text-layer, wheel-page-navigation, or `window.location.reload()` path remains in the V3 reader.
+- A local production HTTP smoke test reached Next.js but returned 500 because the sandbox has no Supabase URL/key environment variables. This prevented authenticated/live book-page browser testing in this environment; the server log identified the missing runtime credentials, not a reader exception.
