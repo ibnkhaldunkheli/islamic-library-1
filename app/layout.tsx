@@ -32,7 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ServiceWorkerRegistration />
         {announcement && <AnnouncementBanner announcement={announcement} />}
         <NavBar />
-        <AudioProvider><main className="mx-auto min-h-[calc(100vh-72px)] max-w-7xl px-4 pb-28 pt-7 sm:px-6 lg:px-8">{children}</main></AudioProvider>
+        <AudioProvider><main className="min-h-[calc(100vh-72px)] px-4 pb-28 pt-7 sm:px-6 lg:ml-64 lg:px-8"><div className="mx-auto w-full max-w-7xl">{children}</div></main></AudioProvider>
       </body>
     </html>
   );

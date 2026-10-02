@@ -28,13 +28,13 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6">
+    <div className="page-enter mx-auto flex max-w-sm flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-ink">Account</h1>
         <p className="mt-1 text-sm text-ink/60">{user.email}</p>
       </div>
 
-      <div className="card flex flex-col gap-3 p-5">
+      <div className="surface flex flex-col gap-3 p-6">
         <Link href="/saved" className="btn-secondary text-center">
           Saved books &amp; lectures
         </Link>

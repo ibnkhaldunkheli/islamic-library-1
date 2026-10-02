@@ -85,8 +85,8 @@ export default async function SearchPage({
   const noResults = hasQuery && bookResults.length + audioResults.length + scholarResults.length === 0;
 
   return (
-    <div className="flex flex-col gap-8">
-      <form className="flex max-w-lg items-center gap-2">
+    <div className="page-enter flex flex-col gap-8">
+      <header><p className="eyebrow">Find knowledge</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight text-navy">Search the library</h1><p className="mt-2 text-sm text-ink/55">Search books, lectures, scholars, and categories from the Maktaba collection.</p></header><form className="surface flex max-w-3xl items-center gap-2 p-3">
         <input
           name="q"
           type="search"
@@ -109,7 +109,7 @@ export default async function SearchPage({
 
       {bookResults.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-bold text-ink">Books</h2>
+          <h2 className="mb-4 text-xl font-extrabold text-navy">Books</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
             {bookResults.map((b) => (
               <BookCard key={b.id} book={b} />
@@ -120,7 +120,7 @@ export default async function SearchPage({
 
       {audioResults.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-bold text-ink">Audio lectures</h2>
+          <h2 className="mb-4 text-xl font-extrabold text-navy">Audio lectures</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
             {audioResults.map((a) => (
               <AudioCard key={a.id} lecture={a} />
@@ -131,13 +131,13 @@ export default async function SearchPage({
 
       {scholarResults.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-bold text-ink">Ulama</h2>
+          <h2 className="mb-4 text-xl font-extrabold text-navy">Ulama</h2>
           <div className="flex flex-wrap gap-3">
             {scholarResults.map((s) => (
               <Link
                 key={s.id}
                 href={`/ulama/${s.id}`}
-                className="card px-4 py-2 text-sm font-medium text-ink hover:border-emerald-600 hover:text-emerald-700"
+                className="surface interactive px-4 py-3 text-sm font-bold text-ink hover:border-blue-300 hover:text-blue-700"
                 dir="auto"
               >
                 {s.name}

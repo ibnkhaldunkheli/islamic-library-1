@@ -73,8 +73,8 @@ export default async function AudioDetailPage({ params }: { params: { id: string
   const nextPart = seriesIndex >= 0 && seriesIndex < seriesParts.length - 1 ? seriesParts[seriesIndex + 1] : null;
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
+    <div className="page-enter mx-auto flex max-w-2xl flex-col gap-6">
+      <div className="surface flex items-start justify-between gap-3 p-5 sm:p-7">
         <div>
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
             {LANGUAGE_LABELS[lecture.language]}
@@ -102,7 +102,7 @@ export default async function AudioDetailPage({ params }: { params: { id: string
         sourceNote={lecture.source_note}
       />
 
-      <AudioPlayer src={lecture.audio_url} title={lecture.title} lectureId={lecture.id} />
+      <div className="surface p-3 sm:p-5"><AudioPlayer src={lecture.audio_url} title={lecture.title} lectureId={lecture.id} /></div>
 
       {(prevPart || nextPart) && (
         <div className="flex items-center justify-between gap-3">

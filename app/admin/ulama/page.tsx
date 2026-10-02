@@ -110,7 +110,7 @@ export default function AdminUlamaPage() {
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[360px_1fr]">
-      <form onSubmit={handleSubmit} className="card flex h-fit flex-col gap-4 p-5">
+      <form onSubmit={handleSubmit} className="surface flex h-fit flex-col gap-4 p-5">
         <h2 className="font-semibold text-ink">{editingId ? 'Edit scholar' : 'Add scholar'}</h2>
 
         <div>
@@ -192,7 +192,7 @@ export default function AdminUlamaPage() {
         </div>
       </form>
 
-      <div className="card divide-y divide-line">
+      <div className="surface divide-y divide-line">
         {scholars.length === 0 && <p className="p-5 text-sm text-ink/60">No scholars yet.</p>}
         {scholars.map((s) => (
           <div key={s.id} className="flex items-center justify-between gap-3 p-4">

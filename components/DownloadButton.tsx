@@ -25,6 +25,7 @@ export default function DownloadButton({
   const [state, setState] = useState<State>('checking');
   const [progress, setProgress] = useState<DownloadProgress>({ loaded: 0, total: null });
   const [errorMsg, setErrorMsg] = useState('');
+  const [confirm, setConfirm] = useState<'download' | 'remove' | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function DownloadButton({
     // a second tap while already downloading/downloaded can't start a
     // second concurrent fetch for the same item.
     if (state !== 'idle' && state !== 'error') return;
+    setConfirm(null);
     setState('downloading');
     setErrorMsg('');
     setProgress({ loaded: 0, total: null });
@@ -66,6 +68,7 @@ export default function DownloadButton({
 
   const remove = async () => {
     await removeOfflineDownload(itemType, itemId);
+    setConfirm(null);
     setState('idle');
   };
 
@@ -80,7 +83,7 @@ export default function DownloadButton({
           </svg>
           Available offline
         </span>
-        <button type="button" onClick={remove} className="text-ink/40 hover:text-red-600 hover:underline">
+        <button type="button" onClick={() => setConfirm('remove')} className="text-ink/40 hover:text-red-600 hover:underline">
           Remove download
         </button>
       </div>
@@ -109,8 +112,8 @@ export default function DownloadButton({
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        onClick={start}
-        className="flex w-fit items-center gap-1 text-xs text-emerald-700 hover:underline"
+        onClick={() => setConfirm('download')}
+        className="flex w-fit items-center gap-1 text-xs font-bold text-blue-700 transition hover:underline"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" />
@@ -118,6 +121,7 @@ export default function DownloadButton({
         Download for offline
       </button>
       {state === 'error' && <p className="text-xs text-red-600">{errorMsg}</p>}
+      {confirm && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-navy/40 p-4" role="presentation"><div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-2xl"><h2 className="text-lg font-extrabold text-navy">{confirm === 'download' ? 'Save for offline?' : 'Remove download?'}</h2><p className="mt-2 text-sm leading-6 text-ink/65">{confirm === 'download' ? 'Download this item for reading or listening without a connection.' : 'Remove the offline copy from this device?'}</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setConfirm(null)} className="btn-secondary">Cancel</button><button type="button" onClick={() => { if (confirm === 'download') void start(); else void remove(); }} className={confirm === 'remove' ? 'btn-danger' : 'btn-primary'}>{confirm === 'download' ? 'Continue' : 'Remove'}</button></div></div></div>}
     </div>
   );
 }

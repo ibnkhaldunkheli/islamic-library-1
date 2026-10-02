@@ -220,3 +220,15 @@ The optional R2/B2 provider metadata columns remain supported by the existing st
 
 - **Fresh installation:** run the complete `supabase/schema.sql` once. It includes the original Maktaba schema, all storage policies, visitor favorites/progress, reports, announcements, and comments.
 - **Existing installation:** do not rerun the full schema. Apply only migrations that have not already been applied, including `014_comments.sql` if comments have not yet been installed. Migration 014 is idempotent and preserves existing content.
+
+## PDF Reader Remastered
+
+The reader now keeps one stable PDF.js document per URL session, uses a dedicated nested reading viewport, IntersectionObserver-driven nearby-page rendering, per-page render cancellation/generation guards, cached PDF pages/text, distant canvas cleanup, stable rotation and fit calculations, lightweight thumbnails, search highlighting, mobile pinch/pan support, reduced-motion-compatible loading polish, and a one-step download confirmation modal. The reader remains client-side and does not change the Supabase architecture.
+
+## Maktaba complete UI/UX remaster
+
+The application shell now follows the BookBase-inspired Maktaba language: a responsive desktop sidebar, search-first top bar, mobile bottom navigation, navy/royal-blue surfaces, premium cover-first cards, scholarly directory cards, modern category directory, consistent account/admin surfaces, reusable skeleton states, and restrained reduced-motion-compatible transitions. Existing routes, Supabase queries, authentication, storage, reader, audio, comments, reports, saved items, offline downloads, and admin CRUD remain in place.
+
+## Final consistency pass
+
+The final pass aligns saved items, offline downloads, scholar profiles, book/audio detail pages, account surfaces, admin CRUD screens, and route loading states with the shared Maktaba design system. Authenticated PDF readers restore their saved page from `user_progress` after the stable PDF document is ready, while anonymous readers continue using local progress; progress continues saving both locally and to Supabase for authenticated users.

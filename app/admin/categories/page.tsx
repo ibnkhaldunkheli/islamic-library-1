@@ -63,7 +63,7 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[320px_1fr]">
-      <form onSubmit={handleSubmit} className="card flex h-fit flex-col gap-4 p-5">
+      <form onSubmit={handleSubmit} className="surface flex h-fit flex-col gap-4 p-5">
         <h2 className="font-semibold text-ink">{editingId ? 'Edit category' : 'Add category'}</h2>
 
         <div>
@@ -99,7 +99,7 @@ export default function AdminCategoriesPage() {
         </div>
       </form>
 
-      <div className="card divide-y divide-line">
+      <div className="surface divide-y divide-line">
         {categories.length === 0 && <p className="p-5 text-sm text-ink/60">No categories yet.</p>}
         {categories.map((c) => (
           <div key={c.id} className="flex items-center justify-between gap-3 p-4">

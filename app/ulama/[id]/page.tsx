@@ -7,6 +7,7 @@ import { LANGUAGE_LABELS } from '@/lib/types';
 import BookCard from '@/components/BookCard';
 import AudioCard from '@/components/AudioCard';
 import EmptyState from '@/components/EmptyState';
+import Icon from '@/components/Icon';
 
 export const revalidate = 0;
 
@@ -44,10 +45,10 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
   const audio = (audioData ?? []) as AudioLecture[];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="page-enter flex flex-col gap-8">
       <Link
         href="/ulama"
-        className="flex w-fit items-center gap-1.5 text-sm font-medium text-ink/60 transition-colors hover:text-emerald-700"
+        className="flex w-fit items-center gap-1.5 text-sm font-bold text-ink/60 transition-colors hover:text-blue-700"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M15 18l-6-6 6-6" />
@@ -56,18 +57,13 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
       </Link>
 
       {/* Header / profile area */}
-      <div className="card flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:text-left">
-        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-full bg-emerald-50">
+      <div className="surface flex flex-col items-center gap-5 p-6 text-center sm:flex-row sm:text-left sm:p-8">
+        <div className="h-28 w-28 shrink-0 overflow-hidden rounded-3xl bg-blue-50">
           {scholar.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={scholar.photo_url} alt="" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-emerald-300">
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
-                <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z" />
-                <path d="M4 21c1.6-4 5-6 8-6s6.4 2 8 6" />
-              </svg>
-            </div>
+            <div className="flex h-full w-full items-center justify-center text-blue-300"><Icon name="scholar" size={44} /></div>
           )}
         </div>
         <div>
@@ -87,7 +83,7 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
               {scholar.languages.map((lang) => (
                 <span
                   key={lang}
-                  className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                    className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700"
                 >
                   {LANGUAGE_LABELS[lang]}
                 </span>
@@ -103,8 +99,8 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
 
       {/* Biography — full text, readable, not squeezed into a tiny box */}
       {scholar.bio && (
-        <section className="card p-6">
-          <h2 className="mb-3 text-lg font-bold text-ink">Biography</h2>
+        <section className="surface p-6">
+          <h2 className="mb-3 text-lg font-extrabold text-navy">Biography</h2>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80" dir="auto">
             {scholar.bio}
           </p>
@@ -113,7 +109,7 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
 
       {/* Books by this Shaykh */}
       <section>
-        <h2 className="mb-4 text-lg font-bold text-ink">Books by this Shaykh</h2>
+          <h2 className="mb-4 text-xl font-extrabold text-navy">Books by this Shaykh</h2>
         {books.length === 0 ? (
           <EmptyState
             title="No books have been added yet."
@@ -133,7 +129,7 @@ export default async function ScholarProfilePage({ params }: { params: { id: str
           section for content the admin hasn't added at all. */}
       {audio.length > 0 && (
         <section>
-          <h2 className="mb-4 text-lg font-bold text-ink">Audio lectures by this Shaykh</h2>
+          <h2 className="mb-4 text-xl font-extrabold text-navy">Audio lectures by this Shaykh</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
             {audio.map((a) => (
               <AudioCard key={a.id} lecture={a} />

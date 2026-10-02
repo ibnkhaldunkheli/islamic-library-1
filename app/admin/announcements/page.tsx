@@ -70,7 +70,7 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[380px_1fr]">
-      <form onSubmit={handleSubmit} className="card flex h-fit flex-col gap-4 p-5">
+      <form onSubmit={handleSubmit} className="surface flex h-fit flex-col gap-4 p-5">
         <h2 className="font-semibold text-ink">{editingId ? 'Edit announcement' : 'New announcement'}</h2>
         <div>
           <label className="label">Message</label>
@@ -112,7 +112,7 @@ export default function AdminAnnouncementsPage() {
         </div>
       </form>
 
-      <div className="card divide-y divide-line">
+      <div className="surface divide-y divide-line">
         {items.length === 0 && <p className="p-5 text-sm text-ink/60">No announcements yet.</p>}
         {items.map((a) => (
           <div key={a.id} className="flex items-center justify-between gap-3 p-4">

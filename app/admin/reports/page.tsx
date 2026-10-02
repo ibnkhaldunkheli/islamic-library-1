@@ -40,7 +40,7 @@ export default function AdminReportsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="page-enter flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-ink">Reports</h1>
         <div className="flex gap-2">
@@ -62,9 +62,9 @@ export default function AdminReportsPage() {
         <EmptyState title="No reports" hint="Problems visitors flag on books or lectures will show up here." />
       )}
 
-      <div className="card divide-y divide-line">
+      <div className="surface divide-y divide-line">
         {reports.map((r) => (
-          <div key={r.id} className="flex flex-col gap-2 p-4">
+          <div key={r.id} className="page-enter flex flex-col gap-2 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-paper px-2 py-0.5 text-[11px] font-medium text-ink/60 ring-1 ring-line">

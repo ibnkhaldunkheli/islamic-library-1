@@ -88,7 +88,7 @@ export default async function BookDetailPage({ params }: { params: { id: string 
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="page-enter flex flex-col gap-6">
       <Link
         href="/books"
         className="flex w-fit items-center gap-1.5 text-sm font-medium text-ink/60 transition-colors hover:text-emerald-700"
@@ -99,8 +99,8 @@ export default async function BookDetailPage({ params }: { params: { id: string 
         Back to Books
       </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="surface flex flex-col gap-5 p-5 sm:flex-row sm:items-start sm:p-7">
+        <div className="flex min-w-0 flex-1 gap-5"><div className="hidden h-40 w-28 shrink-0 overflow-hidden rounded-xl bg-blue-50 shadow-sm sm:block">{book.cover_url ? <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={book.cover_url} alt="" className="h-full w-full object-cover" /></> : <div className="flex h-full items-center justify-center text-blue-300">Book</div>}</div><div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
               {LANGUAGE_LABELS[book.language]}
@@ -129,7 +129,7 @@ export default async function BookDetailPage({ params }: { params: { id: string 
               </p>
             )
           )}
-        </div>
+        </div></div>
         <SaveButton itemType="book" itemId={book.id} />
       </div>
 
@@ -169,7 +169,7 @@ export default async function BookDetailPage({ params }: { params: { id: string 
 
       {related.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-bold text-ink">More like this</h2>
+          <h2 className="mb-4 text-xl font-extrabold text-navy">More like this</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
             {related.map((b) => (
               <BookCard key={b.id} book={b} />

@@ -168,7 +168,7 @@ export default function AdminBooksPage() {
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[380px_1fr]">
-      <form onSubmit={handleSubmit} className="card flex h-fit flex-col gap-4 p-5">
+      <form onSubmit={handleSubmit} className="surface flex h-fit flex-col gap-4 p-5">
         <h2 className="font-semibold text-ink">{editingId ? 'Edit book' : 'Add book'}</h2>
 
         <div>
@@ -307,7 +307,7 @@ export default function AdminBooksPage() {
             <span className="text-ink/40">{showSeo ? '−' : '+'}</span>
           </button>
           {showSeo && (
-            <div className="flex flex-col gap-3 border-t border-line p-3.5">
+            <div className="page-enter flex flex-col gap-3 border-t border-line p-3.5">
               <p className="text-xs text-ink/50">
                 These fields are never shown to visitors. They only power page metadata
                 and help the internal search find this book.
@@ -383,7 +383,7 @@ export default function AdminBooksPage() {
         </div>
       </form>
 
-      <div className="card divide-y divide-line">
+      <div className="surface divide-y divide-line">
         {books.length === 0 && <p className="p-5 text-sm text-ink/60">No books yet.</p>}
         {books.map((b) => (
           <div key={b.id} className="flex items-center justify-between gap-3 p-4">

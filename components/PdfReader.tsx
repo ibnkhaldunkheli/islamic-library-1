@@ -33,7 +33,7 @@ function normalizeText(value: string) { return value.normalize('NFKC').toLocaleL
 function distance(a: ReactTouch, b: ReactTouch) { return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY); }
 
 export default function PdfReader({ url, title, bookId }: { url: string; title: string; bookId?: string }) {
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const containerRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<any>(null);
   const pageHosts = useRef<Record<number, HTMLDivElement | null>>({});
@@ -42,6 +42,10 @@ export default function PdfReader({ url, title, bookId }: { url: string; title: 
   const pageCache = useRef(new Map<number, any>());
   const textCache = useRef(new Map<number, TextItem[]>());
   const renderTasks = useRef(new Map<number, any>());
+  const renderVersions = useRef(new Map<number, number>());
+  const visiblePagesRef = useRef(new Set<number>([1]));
+  const pageNumRef = useRef(1);
+  const progressRestoreKey = useRef<string | null>(null);
   const restoredPage = useRef(false);
   const pinch = useRef<{ startDistance: number; startZoom: number } | null>(null);
   const pinchFrame = useRef<number | null>(null);
@@ -71,9 +75,14 @@ export default function PdfReader({ url, title, bookId }: { url: string; title: 
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
+  const [downloadConfirmOpen, setDownloadConfirmOpen] = useState(false);
+  const searchTextRef = useRef('');
 
   const zoomKey = bookId ? `maktaba:zoom:book:${bookId}` : null;
   const bookmarkKey = bookId ? `maktaba:bookmarks:${bookId}` : null;
+
+  useEffect(() => { pageNumRef.current = pageNum; }, [pageNum]);
+  useEffect(() => { searchTextRef.current = searchText; }, [searchText]);
 
   const getPage = useCallback(async (page: number) => {
     const cached = pageCache.current.get(page);
@@ -96,43 +105,97 @@ export default function PdfReader({ url, title, bookId }: { url: string; title: 
         if (cancelled) { doc.destroy(); return; }
         documentRef.current = doc; setNumPages(doc.numPages);
         const firstPage = await doc.getPage(1); const viewport = firstPage.getViewport({ scale: 1 }); setPageSize({ width: viewport.width, height: viewport.height }); pageCache.current.set(1, firstPage);
-        const saved = bookId ? user ? await getProgressCloud(createClient(), user.id, 'book', bookId) : getProgress('book', bookId) : undefined;
-        const start = saved && Number.isInteger(saved) && saved >= 1 && saved <= doc.numPages ? saved : 1;
-        setPageNum(start); setPageInput(String(start)); setVisiblePages(new Set([start])); setRenderedPages(new Set([start])); restoredPage.current = true;
+        const localStart = bookId ? getProgress('book', bookId) : undefined;
+        const start = localStart && Number.isInteger(localStart) && localStart >= 1 && localStart <= doc.numPages ? localStart : 1;
+        setPageNum(start); pageNumRef.current = start; setPageInput(String(start)); visiblePagesRef.current = new Set([start]); setVisiblePages(new Set([start])); setRenderedPages(new Set([start])); restoredPage.current = false; progressRestoreKey.current = null;
         const storedZoom = zoomKey ? Number(localStorage.getItem(zoomKey)) : 1; setZoom(Number.isFinite(storedZoom) && storedZoom >= MIN_ZOOM && storedZoom <= MAX_ZOOM ? storedZoom : 1);
         try { const stored = bookmarkKey ? JSON.parse(localStorage.getItem(bookmarkKey) || '[]') : []; setBookmarks(Array.isArray(stored) ? stored.filter((value) => Number.isInteger(value) && value >= 1 && value <= doc.numPages) : []); } catch { setBookmarks([]); }
         setStatus('ready');
       } catch (error) { if (!cancelled) { console.error('Failed to load PDF', error); setStatus('error'); setErrorMessage('This book could not be loaded. Please check your connection and try again.'); } }
     }
     void load();
-    return () => { cancelled = true; renderTasks.current.forEach((task) => task.cancel?.()); documentRef.current?.destroy?.(); documentRef.current = null; };
-  }, [bookId, bookmarkKey, reloadKey, url, user, zoomKey]);
+    return () => {
+      cancelled = true;
+      renderTasks.current.forEach((task) => task.cancel?.());
+      renderTasks.current.clear();
+      renderVersions.current.clear();
+      documentRef.current?.destroy?.();
+      documentRef.current = null;
+    };
+  }, [bookId, bookmarkKey, reloadKey, url, zoomKey]);
+
+  useEffect(() => {
+    if (!bookId || status !== 'ready' || userLoading || !numPages) return;
+    const userId = user?.id;
+    const restoreKey = `${bookId}:${userId ?? 'local'}`;
+    if (progressRestoreKey.current === restoreKey) return;
+    progressRestoreKey.current = restoreKey;
+    let cancelled = false;
+    restoredPage.current = false;
+    void (async () => {
+      const saved = userId ? await getProgressCloud(createClient(), userId, 'book', bookId) : getProgress('book', bookId);
+      if (cancelled) return;
+      const nextPage = saved && Number.isInteger(saved) && saved >= 1 && saved <= numPages ? saved : 1;
+      setPageNum(nextPage); pageNumRef.current = nextPage; setPageInput(String(nextPage)); visiblePagesRef.current = new Set([nextPage]); setVisiblePages(new Set([nextPage])); setRenderedPages((current) => new Set([...current, nextPage])); restoredPage.current = true;
+    })();
+    return () => { cancelled = true; };
+  }, [bookId, numPages, status, user?.id, userLoading]);
 
   useEffect(() => {
     const root = containerRef.current; if (!root || !numPages || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver((entries) => { const nextVisible = new Set(visiblePages); entries.forEach((entry) => { const page = Number((entry.target as HTMLElement).dataset.page); if (entry.isIntersecting) nextVisible.add(page); else nextVisible.delete(page); }); setVisiblePages(nextVisible); const keep = new Set<number>(); nextVisible.forEach((page) => { for (let offset = -1; offset <= 1; offset += 1) if (page + offset >= 1 && page + offset <= numPages) keep.add(page + offset); }); setRenderedPages(keep); const closest = [...nextVisible].sort((a, b) => Math.abs(a - pageNum) - Math.abs(b - pageNum))[0]; if (closest) setPageNum(closest); }, { root, rootMargin: '900px 0px', threshold: 0.01 });
+    const observer = new IntersectionObserver((entries) => {
+      const nextVisible = new Set(visiblePagesRef.current);
+      entries.forEach((entry) => {
+        const page = Number((entry.target as HTMLElement).dataset.page);
+        if (entry.isIntersecting) nextVisible.add(page); else nextVisible.delete(page);
+      });
+      visiblePagesRef.current = nextVisible;
+      setVisiblePages(nextVisible);
+      const keep = new Set<number>();
+      nextVisible.forEach((page) => { for (let offset = -2; offset <= 2; offset += 1) if (page + offset >= 1 && page + offset <= numPages) keep.add(page + offset); });
+      setRenderedPages(keep);
+      const closest = [...nextVisible].sort((a, b) => Math.abs(a - pageNumRef.current) - Math.abs(b - pageNumRef.current))[0];
+      if (closest) setPageNum(closest);
+    }, { root, rootMargin: '900px 0px', threshold: 0.01 });
     Object.entries(pageHosts.current).forEach(([page, host]) => { if (host) { host.dataset.page = page; observer.observe(host); } });
     return () => observer.disconnect();
-  }, [numPages, pageNum, resizeTick, visiblePages]);
+  }, [numPages, resizeTick]);
 
   const calculateScale = useCallback((page: any) => { const root = containerRef.current; if (!root) return 1; const viewport = page.getViewport({ scale: 1, rotation }); const width = Math.max(1, root.clientWidth - PAGE_MARGIN); const height = Math.max(1, root.clientHeight - PAGE_MARGIN); const widthScale = width / viewport.width; const pageScale = Math.min(widthScale, height / viewport.height); if (fitMode === 'width') return Math.max(0.1, widthScale); if (fitMode === 'page') return Math.max(0.1, pageScale); if (fitMode === 'actual') return 1; return zoom; }, [fitMode, rotation, zoom]);
 
+  const getTextItems = useCallback(async (pageNumber: number, page?: any) => { const cached = textCache.current.get(pageNumber); if (cached) return cached; const source = page ?? await getPage(pageNumber); const content = await source.getTextContent(); const items = (content.items ?? []) as TextItem[]; textCache.current.set(pageNumber, items); return items; }, [getPage]);
+
   const renderPage = useCallback(async (pageNumber: number) => {
     const canvas = canvases.current[pageNumber]; const layer = textLayers.current[pageNumber]; const host = pageHosts.current[pageNumber]; if (!canvas || !host || !documentRef.current) return;
+    renderTasks.current.get(pageNumber)?.cancel?.();
+    const version = (renderVersions.current.get(pageNumber) ?? 0) + 1;
+    renderVersions.current.set(pageNumber, version);
     setRenderingPages((current) => new Set(current).add(pageNumber));
     try {
       const page = await getPage(pageNumber); const scale = calculateScale(page); const viewport = page.getViewport({ scale, rotation }); const ratio = window.devicePixelRatio || 1; canvas.width = Math.floor(viewport.width * ratio); canvas.height = Math.floor(viewport.height * ratio); canvas.style.width = `${Math.floor(viewport.width)}px`; canvas.style.height = `${Math.floor(viewport.height)}px`; host.style.minHeight = `${Math.floor(viewport.height) + PAGE_MARGIN}px`; const task = page.render({ canvasContext: canvas.getContext('2d')!, viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : undefined }); renderTasks.current.set(pageNumber, task); await task.promise;
-      if (layer) { const items = await getTextItems(pageNumber, page); layer.replaceChildren(); layer.style.width = `${viewport.width}px`; layer.style.height = `${viewport.height}px`; const query = normalizeText(searchText.trim()); items.forEach((item) => { if (!item.str || !item.transform) return; const span = document.createElement('span'); const x = item.transform[4] * scale; const y = viewport.height - item.transform[5] * scale; span.textContent = item.str; span.style.cssText = `position:absolute;left:${x}px;top:${y - (item.height ?? 10) * scale}px;font-size:${Math.max(6, (item.height ?? 10) * scale)}px;line-height:1;white-space:pre;color:transparent;`; if (query && normalizeText(item.str).includes(query)) span.style.backgroundColor = 'rgba(250,204,21,.7)'; layer.appendChild(span); }); }
+      if (version !== renderVersions.current.get(pageNumber)) return;
+      if (layer) { const items = await getTextItems(pageNumber, page); layer.replaceChildren(); layer.style.width = `${viewport.width}px`; layer.style.height = `${viewport.height}px`; const query = normalizeText(searchTextRef.current.trim()); items.forEach((item) => { if (!item.str || !item.transform) return; const span = document.createElement('span'); const x = item.transform[4] * scale; const y = viewport.height - item.transform[5] * scale; span.textContent = item.str; span.style.cssText = `position:absolute;left:${x}px;top:${y - (item.height ?? 10) * scale}px;font-size:${Math.max(6, (item.height ?? 10) * scale)}px;line-height:1;white-space:pre;color:transparent;`; if (query && normalizeText(item.str).includes(query)) span.style.backgroundColor = 'rgba(250,204,21,.7)'; layer.appendChild(span); }); }
       setRenderingPages((current) => { const next = new Set(current); next.delete(pageNumber); return next; });
-    } catch (error: any) { if (error?.name !== 'RenderingCancelledException') console.error('Failed to render PDF page', error); setRenderingPages((current) => { const next = new Set(current); next.delete(pageNumber); return next; }); }
-  }, [calculateScale, getPage, rotation, searchText]);
-
-  const getTextItems = useCallback(async (pageNumber: number, page?: any) => { const cached = textCache.current.get(pageNumber); if (cached) return cached; const source = page ?? await getPage(pageNumber); const content = await source.getTextContent(); const items = (content.items ?? []) as TextItem[]; textCache.current.set(pageNumber, items); return items; }, [getPage]);
+      renderTasks.current.delete(pageNumber);
+    } catch (error: any) { if (error?.name !== 'RenderingCancelledException') console.error('Failed to render PDF page', error); if (version === renderVersions.current.get(pageNumber)) setRenderingPages((current) => { const next = new Set(current); next.delete(pageNumber); return next; }); }
+  }, [calculateScale, getPage, getTextItems, rotation]);
 
   useEffect(() => { renderedPages.forEach((page) => { void renderPage(page); }); }, [renderedPages, renderPage, resizeTick]);
+  useEffect(() => {
+    Object.entries(canvases.current).forEach(([key, canvas]) => {
+      const page = Number(key);
+      if (!canvas || renderedPages.has(page)) return;
+      renderTasks.current.get(page)?.cancel?.();
+      renderVersions.current.set(page, (renderVersions.current.get(page) ?? 0) + 1);
+      canvas.width = 0;
+      canvas.height = 0;
+      textLayers.current[page]?.replaceChildren();
+    });
+  }, [renderedPages]);
   useEffect(() => { if (!zoomKey || status === 'loading') return; localStorage.setItem(zoomKey, String(zoom)); }, [status, zoom, zoomKey]);
   useEffect(() => { if (!bookId || status !== 'ready' || !restoredPage.current) return; setProgress('book', bookId, pageNum); if (user) setProgressCloud(createClient(), user.id, 'book', bookId, pageNum); }, [bookId, pageNum, status, user]);
   useEffect(() => { const root = containerRef.current; if (!root || typeof ResizeObserver === 'undefined') return; const observer = new ResizeObserver(() => setResizeTick((value) => value + 1)); observer.observe(root); return () => observer.disconnect(); }, []);
+  useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if (event.key !== 'Escape') return; setDownloadConfirmOpen(false); setThumbnailsOpen(false); setSearchOpen(false); }; window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown); }, []);
 
   async function runSearch() { const query = normalizeText(searchText.trim()); if (!query || !numPages) { setSearchResults([]); return; } setSearching(true); const results: SearchResult[] = []; for (let page = 1; page <= numPages; page += 1) { const items = await getTextItems(page); const count = items.reduce((total, item) => total + (normalizeText(item.str ?? '').split(query).length - 1), 0); if (count > 0) results.push({ page, count }); if (page % 8 === 0) await new Promise((resolve) => setTimeout(resolve, 0)); } setSearchResults(results); setSearchIndex(0); setSearching(false); if (results[0]) jumpToPage(results[0].page); }
   function jumpToPage(page: number) { const host = pageHosts.current[page]; setPageNum(page); setVisiblePages((current) => new Set([...current, page])); setRenderedPages((current) => new Set([...current, page])); host?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
@@ -141,7 +204,7 @@ export default function PdfReader({ url, title, bookId }: { url: string; title: 
   function changeZoom(delta: number) { setManualZoom(Math.round((zoom + delta) * 100) / 100); }
   function toggleBookmark() { if (!bookId) return; const next = bookmarks.includes(pageNum) ? bookmarks.filter((page) => page !== pageNum) : [...bookmarks, pageNum].sort((a, b) => a - b); setBookmarks(next); if (bookmarkKey) localStorage.setItem(bookmarkKey, JSON.stringify(next)); }
   function pageKey(page: number) { return `maktaba:page:${bookId ?? 'pdf'}:${page}`; }
-  async function download() { if (downloading) return; setDownloading(true); setDownloadError(false); try { const response = await fetch(url); if (!response.ok) throw new Error('download failed'); const blobUrl = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = blobUrl; link.download = `${title.replace(/[^\w\s-]/g, '').trim() || 'book'}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(blobUrl), 30000); } catch { setDownloadError(true); } finally { setDownloading(false); } }
+  async function download() { if (downloading) return; setDownloadConfirmOpen(false); setDownloading(true); setDownloadError(false); try { const response = await fetch(url); if (!response.ok) throw new Error('download failed'); const blobUrl = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = blobUrl; link.download = `${title.replace(/[^\w\s-]/g, '').trim() || 'book'}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(blobUrl), 30000); } catch { setDownloadError(true); } finally { setDownloading(false); } }
 
   function onTouchStart(e: ReactTouchEvent) { if (e.touches.length >= 2) { pinch.current = { startDistance: distance(e.touches[0], e.touches[1]), startZoom: zoom }; liveZoom.current = zoom; touchStart.current = null; } else if (!pinch.current) touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
   function onTouchMove(e: ReactTouchEvent) { if (!pinch.current || e.touches.length < 2) return; const ratio = distance(e.touches[0], e.touches[1]) / pinch.current.startDistance; liveZoom.current = Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.current.startZoom * ratio)) * 100) / 100; if (pinchFrame.current === null) pinchFrame.current = requestAnimationFrame(() => { setManualZoom(liveZoom.current); pinchFrame.current = null; }); }
@@ -155,7 +218,7 @@ export default function PdfReader({ url, title, bookId }: { url: string; title: 
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-white px-3 py-2">
       <div className="flex items-center gap-1.5"><button type="button" onClick={() => setThumbnailsOpen((value) => !value)} className={toolbarButton('Pages')} aria-label="Show page thumbnails"><Icon name="grid" /></button><button type="button" onClick={() => setSearchOpen((value) => !value)} className={toolbarButton('Search')} aria-label="Search PDF"><Icon name="search" /></button><button type="button" onClick={() => jumpToPage(Math.max(1, pageNum - 1))} disabled={pageNum <= 1} className={toolbarButton('Previous')} aria-label="Previous page"><Icon name="back" /></button><button type="button" onClick={() => jumpToPage(Math.min(numPages, pageNum + 1))} disabled={pageNum >= numPages} className={toolbarButton('Next')} aria-label="Next page"><Icon name="next" /></button></div>
       <span className="min-w-28 text-center text-xs font-bold text-ink/65">Page {pageNum} / {numPages || '—'}</span>
-      <div className="flex items-center gap-1.5"><button type="button" onClick={() => changeZoom(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} className={toolbarButton('Zoom out')} aria-label="Zoom out"><Icon name="minus" /></button><select value={fitMode === 'manual' ? String(zoom) : fitMode} onChange={(e) => e.target.value === 'width' || e.target.value === 'page' || e.target.value === 'actual' ? (setFitMode(e.target.value), e.target.value === 'actual' && setZoom(1)) : setManualZoom(Number(e.target.value))} className="h-9 rounded-lg border border-line bg-white px-1.5 text-xs font-bold" aria-label="Fit or zoom"><option value="width">Fit width</option><option value="page">Fit page</option><option value="actual">Actual size</option>{ZOOM_PRESETS.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select><button type="button" onClick={() => changeZoom(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} className={toolbarButton('Zoom in')} aria-label="Zoom in"><Icon name="plus" /></button><button type="button" onClick={() => setRotation((value) => (value + 90) % 360)} className={toolbarButton('Rotate')} aria-label="Rotate page"><Icon name="rotate" /></button><button type="button" onClick={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void document.querySelector('.pdf-reader-shell')?.requestFullscreen?.(); }} className={toolbarButton('Fullscreen')} aria-label="Fullscreen"><Icon name="fullscreen" /></button><button type="button" onClick={toggleBookmark} className={`${toolbarButton('Bookmark')} ${bookmarks.includes(pageNum) ? 'bg-blue-100 text-blue-700' : ''}`} aria-label="Bookmark page"><Icon name={bookmarks.includes(pageNum) ? 'bookmarkFilled' : 'bookmark'} /></button><button type="button" onClick={() => window.print()} className={`${toolbarButton('Print')} hidden sm:flex`} aria-label="Print"><Icon name="print" /></button><button type="button" onClick={download} disabled={status !== 'ready' || downloading} className={toolbarButton('Download')} aria-label="Download"><Icon name="download" /></button></div>
+      <div className="flex items-center gap-1.5"><button type="button" onClick={() => changeZoom(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} className={toolbarButton('Zoom out')} aria-label="Zoom out"><Icon name="minus" /></button><select value={fitMode === 'manual' ? String(zoom) : fitMode} onChange={(e) => e.target.value === 'width' || e.target.value === 'page' || e.target.value === 'actual' ? (setFitMode(e.target.value), e.target.value === 'actual' && setZoom(1)) : setManualZoom(Number(e.target.value))} className="h-9 rounded-lg border border-line bg-white px-1.5 text-xs font-bold" aria-label="Fit or zoom"><option value="width">Fit width</option><option value="page">Fit page</option><option value="actual">Actual size</option>{ZOOM_PRESETS.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select><button type="button" onClick={() => changeZoom(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} className={toolbarButton('Zoom in')} aria-label="Zoom in"><Icon name="plus" /></button><button type="button" onClick={() => setRotation((value) => (value + 90) % 360)} className={toolbarButton('Rotate')} aria-label="Rotate page"><Icon name="rotate" /></button><button type="button" onClick={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void document.querySelector('.pdf-reader-shell')?.requestFullscreen?.(); }} className={toolbarButton('Fullscreen')} aria-label="Fullscreen"><Icon name="fullscreen" /></button><button type="button" onClick={toggleBookmark} className={`${toolbarButton('Bookmark')} ${bookmarks.includes(pageNum) ? 'bg-blue-100 text-blue-700' : ''}`} aria-label="Bookmark page"><Icon name={bookmarks.includes(pageNum) ? 'bookmarkFilled' : 'bookmark'} /></button><button type="button" onClick={() => window.print()} className={`${toolbarButton('Print')} hidden sm:flex`} aria-label="Print"><Icon name="print" /></button><button type="button" onClick={() => setDownloadConfirmOpen(true)} disabled={status !== 'ready' || downloading} className={toolbarButton('Download')} aria-label="Download"><Icon name="download" /></button></div>
     </div>
     {searchOpen && <div className="flex flex-wrap items-center gap-2 border-b border-line bg-blue-50/60 px-3 py-2"><Icon name="search" size={15} /><input autoFocus value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void runSearch(); }} placeholder="Search inside this PDF…" className="input max-w-md py-2 text-xs"/><button type="button" onClick={() => void runSearch()} className="btn-primary px-3 py-2 text-xs">{searching ? 'Searching…' : 'Search'}</button><span className="text-xs text-ink/55">{searchResults.length ? `${searchResults.reduce((sum, result) => sum + result.count, 0)} matches` : 'No matches yet'}</span>{searchResults.length > 0 && <><button type="button" onClick={() => nextResult(-1)} className="btn-secondary px-2 py-1.5 text-xs">Prev</button><button type="button" onClick={() => nextResult(1)} className="btn-secondary px-2 py-1.5 text-xs">Next</button></>}</div>}
     {bookmarks.length > 0 && <div className="flex gap-2 overflow-x-auto border-b border-line bg-blue-50/40 px-3 py-2 text-xs"><span className="shrink-0 font-bold text-blue-700">Bookmarks</span>{bookmarks.map((page) => <button key={page} type="button" onClick={() => jumpToPage(page)} className="shrink-0 rounded-md bg-white px-2 py-1 font-semibold text-ink/65 hover:text-blue-700">Page {page}</button>)}</div>}
@@ -163,12 +226,13 @@ export default function PdfReader({ url, title, bookId }: { url: string; title: 
     <div className="flex min-h-[65vh] bg-slate-100">
       {thumbnailsOpen && <aside className="hidden w-28 shrink-0 overflow-y-auto border-r border-line bg-white p-2 md:block">{thumbnailPages.map((page) => <button type="button" key={page} onClick={() => jumpToPage(page)} className={`mb-2 block w-full rounded-md border p-1 text-center text-[10px] ${page === pageNum ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-line text-ink/55'}`}><Thumbnail doc={documentRef.current} page={page} /><span>Page {page}</span></button>)}</aside>}
       <div ref={containerRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onWheel={onWheel} onDoubleClick={() => setManualZoom(zoom > 1.1 ? 1 : 2)} className="relative min-w-0 flex-1 overflow-auto p-4" style={{ touchAction: zoom > 1 || fitMode === 'manual' ? 'pan-x pan-y' : 'pan-y' }}>
-        {status === 'loading' && <div className="flex h-[60vh] items-center justify-center text-sm text-ink/50">Loading book…</div>}
+        {status === 'loading' && <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-sm text-ink/50"><div className="w-full max-w-md animate-pulse rounded-xl border border-line bg-white p-4"><div className="mb-3 h-3 w-24 rounded bg-blue-100" /><div className="h-[42vh] rounded-lg bg-slate-100" /></div><span>Loading book…</span></div>}
         {status === 'error' && <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-center"><p className="text-sm text-ink/70">{errorMessage}</p><button type="button" onClick={() => setReloadKey((value) => value + 1)} className="btn-secondary">Try again</button></div>}
         {status === 'ready' && Array.from({ length: numPages }, (_, index) => index + 1).map((page) => <div key={page} ref={(node) => { pageHosts.current[page] = node; }} data-page={page} className="relative mx-auto mb-4 flex w-fit min-w-[min(100%,595px)] justify-center bg-white shadow-sm" style={{ minHeight: `${Math.max(300, pageSize.height / pageSize.width * Math.min(containerRef.current?.clientWidth ?? 595, pageSize.width) + PAGE_MARGIN)}px` }}><div className="relative"><canvas ref={(node) => { canvases.current[page] = node; }} className={renderedPages.has(page) ? 'block' : 'hidden'} aria-label={`${title} — page ${page}`} /><div ref={(node) => { textLayers.current[page] = node; }} className="pointer-events-none absolute left-0 top-0 select-text" aria-hidden="true" />{!renderedPages.has(page) && <button type="button" onClick={() => jumpToPage(page)} className="flex min-h-[300px] min-w-[280px] items-center justify-center text-xs font-semibold text-ink/35">Load page {page}</button>}{renderingPages.has(page) && <span className="absolute left-1/2 top-4 h-5 w-5 -translate-x-1/2 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />}</div></div>)}
       </div>
     </div>
     {downloadError && <p className="px-3 py-2 text-xs text-red-600">Couldn&apos;t download the file. Please try again.</p>}
+    {downloadConfirmOpen && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-navy/40 p-4 transition-opacity"><div role="dialog" aria-modal="true" aria-labelledby="download-title" className="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-2xl transition-transform"><h2 id="download-title" className="text-lg font-extrabold text-navy">Download PDF?</h2><p className="mt-2 text-sm leading-6 text-ink/65">Are you sure you want to download this book?</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setDownloadConfirmOpen(false)} className="btn-secondary">Cancel</button><button type="button" onClick={() => void download()} className="btn-primary">Continue</button></div></div></div>}
     <div className="flex items-center justify-between gap-2 border-t border-line bg-white px-3 py-2.5"><button type="button" onClick={() => jumpToPage(1)} disabled={pageNum <= 1} className="btn-secondary px-3 py-1.5 text-xs"><Icon name="back" size={14} /> <span className="ml-1">First</span></button><div className="flex items-center gap-1.5 text-xs text-ink/60"><span>Go to</span><input type="number" min={1} max={numPages} value={pageInput} onChange={(e) => setPageInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { const page = Math.min(numPages, Math.max(1, Number(pageInput))); jumpToPage(page); setPageInput(String(page)); } }} className="w-14 rounded-lg border border-line px-2 py-1.5 text-center" aria-label="Go to page"/><span>/ {numPages}</span></div><button type="button" onClick={() => jumpToPage(numPages)} disabled={pageNum >= numPages} className="btn-secondary px-3 py-1.5 text-xs"><span className="mr-1">Last</span><Icon name="next" size={14} /></button></div>
   </div>;
 }

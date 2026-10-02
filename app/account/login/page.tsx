@@ -31,7 +31,7 @@ export default function AccountLoginPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6">
+    <div className="page-enter mx-auto flex max-w-sm flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-ink">Sign in</h1>
         <p className="mt-1 text-sm text-ink/60">
@@ -39,7 +39,7 @@ export default function AccountLoginPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
+      <form onSubmit={handleSubmit} className="surface flex flex-col gap-4 p-6">
         <div>
           <label className="label" htmlFor="email">
             Email
@@ -76,7 +76,7 @@ export default function AccountLoginPage() {
 
       <p className="text-center text-sm text-ink/60">
         Don&apos;t have an account?{' '}
-        <Link href="/account/signup" className="font-medium text-emerald-700 hover:underline">
+        <Link href="/account/signup" className="font-medium text-blue-700 hover:underline">
           Create one
         </Link>
       </p>

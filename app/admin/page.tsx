@@ -43,7 +43,7 @@ export default async function AdminDashboard() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="page-enter flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
         <p className="mt-1 text-sm text-ink/60">
@@ -53,7 +53,7 @@ export default async function AdminDashboard() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
         {tiles.map((t) => (
-          <Link key={t.href} href={t.href} className="card flex flex-col gap-2 p-5 hover:shadow-sm">
+          <Link key={t.href} href={t.href} className="surface interactive flex flex-col gap-2 p-5 hover:border-blue-300">
             <span className="text-3xl font-bold text-emerald-700">{t.count}</span>
             <span className="text-sm font-medium text-ink">{t.label}</span>
             <span className="text-xs text-emerald-700">{t.cta} <Icon name="arrowRight" size={13} /></span>
@@ -63,7 +63,7 @@ export default async function AdminDashboard() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {topBooks.length > 0 && (
-          <div className="card p-5">
+          <div className="surface p-5">
             <h2 className="mb-3 font-semibold text-ink">Most viewed books</h2>
             <div className="divide-y divide-line">
               {topBooks.map((b) => (
@@ -83,7 +83,7 @@ export default async function AdminDashboard() {
         )}
 
         {topAudio.length > 0 && (
-          <div className="card p-5">
+          <div className="surface p-5">
             <h2 className="mb-3 font-semibold text-ink">Most played lectures</h2>
             <div className="divide-y divide-line">
               {topAudio.map((a) => (

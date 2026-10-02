@@ -1,91 +1,21 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import EmptyState from '@/components/EmptyState';
+import Icon from '@/components/Icon';
 import type { Scholar } from '@/lib/types';
 
 export const revalidate = 0;
 
 export default async function UlamaPage() {
   const supabase = createClient();
-
-  // Real counts, not placeholders: pull every book/audio scholar_id and
-  // tally them client-side rather than one query per scholar.
   const [{ data: scholarData }, { data: bookLinks }, { data: audioLinks }] = await Promise.all([
     supabase.from('scholars').select('*').order('name'),
     supabase.from('books').select('scholar_id').not('scholar_id', 'is', null),
     supabase.from('audio_lectures').select('scholar_id').not('scholar_id', 'is', null),
   ]);
+  const scholars = ((scholarData ?? []) as Scholar[]).sort((a, b) => Number(b.featured ?? false) - Number(a.featured ?? false));
+  const bookCounts = new Map<string, number>(); for (const row of bookLinks ?? []) if (row.scholar_id) bookCounts.set(row.scholar_id, (bookCounts.get(row.scholar_id) ?? 0) + 1);
+  const audioCounts = new Map<string, number>(); for (const row of audioLinks ?? []) if (row.scholar_id) audioCounts.set(row.scholar_id, (audioCounts.get(row.scholar_id) ?? 0) + 1);
 
-  const scholars = (scholarData ?? []) as Scholar[];
-  // Featured scholars surface first, then alphabetical within each group
-  // (the query above already orders by name, so this sort is stable).
-  scholars.sort((a, b) => Number(b.featured ?? false) - Number(a.featured ?? false));
-
-  const bookCounts = new Map<string, number>();
-  for (const row of bookLinks ?? []) {
-    if (!row.scholar_id) continue;
-    bookCounts.set(row.scholar_id, (bookCounts.get(row.scholar_id) ?? 0) + 1);
-  }
-  const audioCounts = new Map<string, number>();
-  for (const row of audioLinks ?? []) {
-    if (!row.scholar_id) continue;
-    audioCounts.set(row.scholar_id, (audioCounts.get(row.scholar_id) ?? 0) + 1);
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-ink">Ulama</h1>
-
-      {scholars.length === 0 ? (
-        <EmptyState
-          title="No scholars added yet."
-          hint="Scholar profiles added by the administrator will appear here."
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {scholars.map((s) => {
-            const bookCount = bookCounts.get(s.id) ?? 0;
-            const audioCount = audioCounts.get(s.id) ?? 0;
-            return (
-              <div key={s.id} className="card flex flex-col items-center gap-3 p-5 text-center">
-                <div className="h-20 w-20 overflow-hidden rounded-full bg-emerald-50">
-                  {s.photo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.photo_url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-emerald-300">
-                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
-                        <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z" />
-                        <path d="M4 21c1.6-4 5-6 8-6s6.4 2 8 6" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <h3 className="font-semibold text-ink" dir="auto">
-                  {s.name}
-                  {s.featured && (
-                    <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                      Featured
-                    </span>
-                  )}
-                </h3>
-                {s.bio && (
-                  <p className="line-clamp-3 text-sm text-ink/60" dir="auto">
-                    {s.bio}
-                  </p>
-                )}
-                <p className="text-xs text-ink/40">
-                  {bookCount} {bookCount === 1 ? 'book' : 'books'}
-                  {audioCount > 0 ? ` · ${audioCount} ${audioCount === 1 ? 'lecture' : 'lectures'}` : ''}
-                </p>
-                <Link href={`/ulama/${s.id}`} className="btn-secondary mt-1 w-full">
-                  View Profile
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="page-enter space-y-8"><header><p className="eyebrow">People of knowledge</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight text-navy">Ulama</h1><p className="mt-2 max-w-xl text-sm leading-6 text-ink/55">Discover scholars and explore the books and lectures connected to their work.</p></header>{scholars.length === 0 ? <EmptyState title="No scholars added yet." hint="Scholar profiles added by the administrator will appear here." /> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{scholars.map((s) => { const bookCount = bookCounts.get(s.id) ?? 0; const audioCount = audioCounts.get(s.id) ?? 0; return <article key={s.id} className="surface interactive group flex flex-col gap-4 p-5"><div className="flex items-center gap-4"><div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-blue-50">{s.photo_url ? <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={s.photo_url} alt="" className="h-full w-full object-cover" /></> : <div className="flex h-full w-full items-center justify-center text-blue-300"><Icon name="scholar" size={28} /></div>}</div><div className="min-w-0"><h2 className="truncate text-base font-extrabold text-ink group-hover:text-blue-700" dir="auto">{s.name}</h2>{s.featured && <span className="mt-1 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">Featured</span>}</div></div>{s.bio && <p className="line-clamp-3 text-sm leading-6 text-ink/60" dir="auto">{s.bio}</p>}<div className="flex items-center gap-3 text-xs font-semibold text-ink/45"><span>{bookCount} {bookCount === 1 ? 'book' : 'books'}</span><span className="h-1 w-1 rounded-full bg-line" /><span>{audioCount} {audioCount === 1 ? 'lecture' : 'lectures'}</span></div><Link href={`/ulama/${s.id}`} className="btn-secondary mt-auto w-full">View profile <Icon name="arrowRight" size={14} /></Link></article>; })}</div>}</div>;
 }

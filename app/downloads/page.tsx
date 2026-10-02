@@ -2,100 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  listOfflineDownloads,
-  removeOfflineDownload,
-  getStorageEstimate,
-  type OfflineDownload,
-} from '@/lib/offlineStore';
+import { listOfflineDownloads, removeOfflineDownload, getStorageEstimate, type OfflineDownload } from '@/lib/offlineStore';
 import EmptyState from '@/components/EmptyState';
+import LibrarySkeleton from '@/components/LibrarySkeleton';
+import Icon from '@/components/Icon';
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+function formatBytes(bytes: number): string { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
 export default function DownloadsPage() {
-  const [items, setItems] = useState<OfflineDownload[]>([]);
-  const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    const [downloads, storage] = await Promise.all([listOfflineDownloads(), getStorageEstimate()]);
-    setItems(downloads);
-    setEstimate(storage);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const remove = async (item: OfflineDownload) => {
-    await removeOfflineDownload(item.itemType, item.itemId);
-    await load();
-  };
-
+  const [items, setItems] = useState<OfflineDownload[]>([]); const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null); const [loading, setLoading] = useState(true); const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const load = async () => { const [downloads, storage] = await Promise.all([listOfflineDownloads(), getStorageEstimate()]); setItems(downloads); setEstimate(storage); setLoading(false); };
+  useEffect(() => { void load(); }, []);
+  const remove = async (item: OfflineDownload) => { await removeOfflineDownload(item.itemType, item.itemId); setConfirmKey(null); await load(); };
   const totalSize = items.reduce((sum, i) => sum + i.size, 0);
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-ink">Downloads</h1>
-        <p className="mt-1 text-sm text-ink/60">
-          Books and lectures saved on this device for offline reading and listening. Downloads are
-          kept on this device only — they&apos;re not tied to an account and won&apos;t follow you to
-          another device.
-        </p>
-      </div>
-
-      {estimate && estimate.quota > 0 && (
-        <div className="card p-4">
-          <div className="mb-1.5 flex items-center justify-between text-xs text-ink/50">
-            <span>
-              {formatBytes(totalSize)} downloaded · {formatBytes(estimate.usage)} of{' '}
-              {formatBytes(estimate.quota)} device storage used by this site
-            </span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-line">
-            <div
-              className="h-full bg-emerald-600"
-              style={{ width: `${Math.min(100, (estimate.usage / estimate.quota) * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {!loading && items.length === 0 && (
-        <EmptyState
-          title="Nothing downloaded yet."
-          hint="Look for “Download for offline” on a book or lecture page to read or listen without an internet connection."
-        />
-      )}
-
-      <div className="card divide-y divide-line">
-        {items.map((item) => (
-          <div key={item.key} className="flex items-center justify-between gap-3 p-4">
-            <div className="min-w-0">
-              <Link
-                href={`/${item.itemType === 'book' ? 'books' : 'audio'}/${item.itemId}`}
-                className="truncate text-sm font-medium text-ink hover:text-emerald-700"
-                dir="auto"
-              >
-                {item.title}
-              </Link>
-              <p className="text-xs text-ink/40">
-                {item.itemType === 'book' ? 'Book' : 'Audio'} · {formatBytes(item.size)} ·{' '}
-                {new Date(item.downloadedAt).toLocaleDateString()}
-              </p>
-            </div>
-            <button onClick={() => remove(item)} className="btn-secondary shrink-0 text-xs">
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  if (loading) return <LibrarySkeleton cards={5} kind="audio" />;
+  return <div className="page-enter space-y-8"><header><p className="eyebrow">Available offline</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight text-navy">Downloads</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-ink/55">Books and lectures saved on this device for offline reading and listening.</p></header>{estimate && estimate.quota > 0 && <section className="surface p-5"><div className="flex items-end justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-[.16em] text-blue-600">Storage status</p><p className="mt-1 text-lg font-extrabold text-navy">{formatBytes(totalSize)} downloaded</p></div><span className="text-xs font-semibold text-ink/45">{formatBytes(estimate.usage)} of {formatBytes(estimate.quota)} used</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-blue-50"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${Math.min(100, (estimate.usage / estimate.quota) * 100)}%` }} /></div></section>}{items.length === 0 ? <EmptyState title="Nothing downloaded yet." hint="Use Download for offline on any book or lecture page to see it here." /> : <section className="surface divide-y divide-line overflow-hidden">{items.map((item) => <div key={item.key} className="flex items-center gap-4 p-4 transition hover:bg-blue-50/40 sm:p-5"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Icon name={item.itemType === 'book' ? 'books' : 'audio'} /></span><div className="min-w-0 flex-1"><Link href={`/${item.itemType === 'book' ? 'books' : 'audio'}/${item.itemId}`} className="block truncate text-sm font-extrabold text-ink hover:text-blue-700" dir="auto">{item.title}</Link><p className="mt-1 text-xs font-semibold text-ink/40">{item.itemType === 'book' ? 'Book' : 'Audio'} · {formatBytes(item.size)} · {new Date(item.downloadedAt).toLocaleDateString()}</p></div><span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 sm:inline-flex">Available offline</span><button type="button" onClick={() => setConfirmKey(item.key)} className="btn-secondary shrink-0 px-3 py-2 text-xs">Remove</button></div>)}</section>}{confirmKey && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-navy/40 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl border border-line bg-white p-6 shadow-2xl"><h2 className="text-lg font-extrabold text-navy">Remove download?</h2><p className="mt-2 text-sm leading-6 text-ink/65">The offline copy will be removed from this device.</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setConfirmKey(null)} className="btn-secondary">Cancel</button><button type="button" onClick={() => { const item = items.find((entry) => entry.key === confirmKey); if (item) void remove(item); }} className="btn-danger">Remove</button></div></div></div>}</div>;
 }
